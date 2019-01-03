@@ -164,4 +164,4 @@ For each space returned by [v8.getHeapSpaceStatistics](https://nodejs.org/api/v8
 
 * Number currently opened: `openFileDescriptorsCount`
 
-* Limit: `maxFileDescriptorsCount`
+* Limit: `maxFileDescriptorsCount` - the maximum number of file descriptors we can have open at the same time.
