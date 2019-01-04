@@ -31,5 +31,8 @@
     "src/*",
     "internals/*",
     "*.gyp"
-  ]
+  ],
+  "engines": {
+    "node" : ">=10.0.0"
+  }
 }
