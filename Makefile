@@ -10,7 +10,11 @@ MOCHA       := $(NODE_BIN)/mocha
 _MOCHA      := $(NODE_BIN)/_mocha
 
 .PHONY: all
-all: clean lint codestyle testOrCoverage
+all: clean $(NODE_MODULES) lint codestyle testOrCoverage
+
+$(NODE_MODULES): package.json
+	@npm install
+	@touch $(NODE_MODULES)
 
 .PHONY: lint
 lint:
