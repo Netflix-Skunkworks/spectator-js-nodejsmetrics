@@ -6,6 +6,14 @@ const NodeMetrics = require('../');
 const assert = require('chai').assert;
 
 describe('nodemetrics', () => {
+  it('should not prevent node from exiting', () => {
+    // basic test to make sure `start()` with no `stop()`
+    // does not prevent the mocha from exiting
+    const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
+    const metrics = new NodeMetrics(registry);
+    metrics.start();
+  });
+
   it('should generate a few meters', (done) => {
     // basic test to make sure `start()` actually starts the
     // collection
