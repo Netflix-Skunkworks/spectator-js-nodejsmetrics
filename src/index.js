@@ -170,7 +170,9 @@ class RuntimeMetrics {
 
   _fdActivity() {
     RuntimeMetrics.updateFdGauges(this, r.GetCurMaxFd);
-    this._intervals.push(setInterval(RuntimeMetrics.updateFdGauges, 10000, this, r.GetCurMaxFd));
+    const reg = this.registry;
+    this._intervals.push(reg.schedulePeriodically(
+      RuntimeMetrics.updateFdGauges, 10000, this, r.GetCurMaxFd));
   }
 
   static updateEvtLoopLag(self) {
@@ -186,7 +188,9 @@ class RuntimeMetrics {
   _evtLoopLag() {
     const now = this.registry.hrtime();
     this._lastNanos = now[0] * 1e9 + now[1];
-    this._intervals.push(setInterval(RuntimeMetrics.updateEvtLoopLag, 1000, this));
+    const reg = this.registry;
+    this._intervals.push(reg.schedulePeriodically(
+      RuntimeMetrics.updateEvtLoopLag, 1000, this));
   }
 
   static measureEvtLoopTime(self) {
@@ -199,7 +203,9 @@ class RuntimeMetrics {
   }
 
   _evtLoopTime() {
-    this._intervals.push(setInterval(RuntimeMetrics.measureEvtLoopTime, 500, this));
+    const reg = this.registry;
+    this._intervals.push(reg.schedulePeriodically(
+      RuntimeMetrics.measureEvtLoopTime, 500, this));
     RuntimeMetrics.measureEvtLoopTime(this);
   }
 
@@ -231,7 +237,8 @@ class RuntimeMetrics {
 
   _cpuHeap() {
     RuntimeMetrics.measureCpuHeap(this);
-    this._intervals.push(setInterval(RuntimeMetrics.measureCpuHeap, 10000, this));
+    const reg = this.registry;
+    this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 10000, this));
   }
 
   start() {
