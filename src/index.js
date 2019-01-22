@@ -57,6 +57,7 @@ class RuntimeMetrics {
     }
 
     this.registry = registry;
+    this.started = false;
     this._intervals = [];
     const extraTags = {'nodejs.version': process.version};
     this.rss = registry.gauge('nodejs.rss', extraTags);
@@ -242,17 +243,24 @@ class RuntimeMetrics {
   }
 
   start() {
+    if (this.started) {
+      this.registry.logger.info('nflx-spectator-nodejsmetrics already started');
+      return;
+    }
+
     this._gcEvents(r.EmitGCEvents);
     this._fdActivity();
     this._evtLoopLag();
     this._evtLoopTime();
     this._cpuHeap();
+    this.started = true;
   }
 
   stop() {
     for (let interval of this._intervals) {
       clearInterval(interval);
     }
+    this.started = false;
   }
 }
 
