@@ -184,4 +184,18 @@ describe('nodemetrics', () => {
     assert.closeTo(t, 0.003, 1e-6);
     assert.equal(timer.count, 1);
   });
+
+  it('should provide a way to check whether it has started', () => {
+    const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
+    const metrics = new NodeMetrics(registry);
+
+    assert.isFalse(metrics.started);
+    metrics.start();
+    assert.isTrue(metrics.started);
+    // should do nothing
+    metrics.start();
+    assert.isTrue(metrics.started);
+    metrics.stop();
+    assert.isFalse(metrics.started);
+  });
 });
