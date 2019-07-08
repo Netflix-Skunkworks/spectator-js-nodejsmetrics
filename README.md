@@ -1,18 +1,15 @@
 [![Build Status](https://travis-ci.org/Netflix-Skunkworks/spectator-js-nodejsmetrics.svg?branch=master)](https://travis-ci.org/Netflix-Skunkworks/spectator-js-nodejsmetrics) 
 [![codecov](https://codecov.io/gh/Netflix-Skunkworks/spectator-js-nodejsmetrics/branch/master/graph/badge.svg)](https://codecov.io/gh/Netflix-Skunkworks/spectator-js-nodejsmetrics)
 
-# Spectator-js node.js metrics
+# Introduction
 
 > :warning: Experimental
 
-Generate node.js internal metrics using the
-[nflx-spectator](https://github.com/Netflix/spectator-js) node module.
+Generate Node.js internal metrics using the [nflx-spectator] Node module.
 
-## Description
+[nflx-spectator]: https://github.com/Netflix/spectator-js
 
-This module will generate node.js metrics using nflx-spectator. 
-
-## Example
+# Usage Example
 
 ```javascript
 'use strict';
@@ -39,130 +36,280 @@ metrics.stop();
 registry.stop();
 ```
 
-## Metrics generated
+# Metrics Glossary
 
-Note that all metrics will have a `nodejs.version` tag
+## Common Dimensions
 
-### CPU
-* `nodejs.cpuUsage`: Percentage of CPU time the node.js process is consuming
-[0, 100]:
-  * id: user
-  * id: system
+The following dimensions are common to the metrics published by this module:
 
-  For example:
-  ```js
-  {
-      "tags": {
-        "id": "system",
-        "name": "nodejs.cpuUsage",
-        /// nf.* tags
-        "nodejs.version": "v6.5.0"
-      },
-      "start": 1485813720000,
-      "value": 0.8954088417692685
-    },
-    {
-      "tags": {
-        "id": "user",
-        "name": "nodejs.cpuUsage",
-        /// nf.* tags
-        "nodejs.version": "v6.5.0"
-      },
-      "start": 1485813720000,
-      "value": 4.659007745141895
-    }
-  ```
+* `nodejs.version`: The version of the Node.js runtime.
 
-### Event Loop
+## CPU Metrics
 
-* `nodejs.eventLoop` timer, which measures the time it takes for the event loop
-  to complete. This is sampled twice per second.
+### nodejs.cpuUsage
 
-* `nodejs.eventLoopLag` timer, which measures if the event loop
-	is running behind by attempting to execute a timer once a second, and
-	measuring the actual lag.
+Percentage of CPU time the Node.js process is consuming, from 0..100.
 
+The usage is divided into the following categories:
 
-### Garbage Collection Metrics
+* `system`: CPU time spent running the kernel.
+* `user`: CPU time spent running user space (non-kernel) processes.
 
-* `nodejs.gc.allocationRate`: measures in bytes/second how fast the app is
-allocating memory
+**Unit:** percent
 
-* `nodejs.gc.promotionRate`: measures in bytes/second how fast data is being
-moved from `new_space` to `old_space`
+**Dimensions:**
 
-* `nodejs.gc.liveDataSize`: measures in bytes the size of the `old_space` after
-a major GC event
+* `id`: The category of CPU usage.
 
-* `nodejs.gc.maxDataSize`: measures the maximum amount of memory the nodejs
-process is allowed to use.  Primarly used for gaining perspective on the
-`liveDataSize`.
+Example:
 
-* `nodejs.gc.pause`: times the time it takes for the different GC
-events:
+```js
+{
+  "tags": {
+    "id": "system",
+    "name": "nodejs.cpuUsage",
+    /// nf.* tags
+    "nodejs.version": "v6.5.0"
+  },
+  "start": 1485813720000,
+  "value": 0.8954088417692685
+},
+{
+  "tags": {
+    "id": "user",
+    "name": "nodejs.cpuUsage",
+    /// nf.* tags
+    "nodejs.version": "v6.5.0"
+  },
+  "start": 1485813720000,
+  "value": 4.659007745141895
+}
+```
 
-	 * `id=scavenge`: The most common garbage collection method. Node will
-	typically trigger one of these every time the VM is idle.
+## Event Loop Metrics
 
-	 * `id=markSweepCompact`: The heaviest type of garbage collection V8
-	may do. If you see many of these happening you will need to either
-	keep fewer objects around in your process or increase V8's heap
-	limit
+### nodejs.eventLoop
 
-	 * `id=incrementalMarking`: A phased garbage collection that
-	interleaves collection with application logic to reduce the amount
-	of time the application is paused.
+The time it takes for the event loop to complete. This is sampled twice per second.
 
-	 * `id=processWeakCallbacks`: After a garbage collection occurs, V8
-	will call any weak reference callbacks registered for objects that
-	have been freed. This measurement is from the start of the first
-	weak callback to the end of the last for a given garbage collection.
+**Unit:** seconds
 
+### nodejs.eventLoopLag
+
+The time that the event loop is running behind, as measured by attempting to execute
+a timer once per second.
+
+**Unit:** seconds
+
+## Garbage Collection Metrics
+
+### nodejs.gc.allocationRate
+
+The rate at which the app is allocating memory.
+
+**Unit:** bytes/second
+
+### nodejs.gc.liveDataSize
+
+The size of the `old_space` after a major GC event.
+
+**Unit:** bytes
+
+### nodejs.gc.maxDataSize
+
+The maximum amount of memory the nodejs process is allowed to use.  This is primarily used
+for gaining perspective on the `liveDataSize`.
+
+**Unit:** bytes
+
+### nodejs.gc.pause
+
+The time it takes to complete different GC events.
+
+Event categories:
+
+* `scavenge`: The most common garbage collection method. Node will typically trigger one of
+these every time the VM is idle.
+* `markSweepCompact`: The heaviest type of garbage collection V8 may do. If you see many of
+these happening you will need to either keep fewer objects around in your process or increase
+V8's heap limit.
+* `incrementalMarking`: A phased garbage collection that interleaves collection with application
+logic to reduce the amount of time the application is paused.
+* `processWeakCallbacks`: After a garbage collection occurs, V8 will call any weak reference
+callbacks registered for objects that have been freed. This measurement is from the start of
+the first weak callback to the end of the last for a given garbage collection.
+
+**Unit:** seconds
+
+**Dimensions:**
+
+* `id`: The GC event category.
+
+### nodejs.gc.promotionRate
+
+The rate at which data is being moved from `new_space` to `old_space`.
+
+**Unit:** bytes/second
 
 ### Memory Usage Metrics
 
-  Memory usage of the Node.js process in bytes:
+### nodejs.rss
 
-  * rss: `nodejs.rss`
-  * heapTotal: `nodejs.heapTotal` - v8 memory usage
-  * heapUsed: `nodejs.heapUsed` - v8 memory usage
-  * external: `nodejs.external` - memory usage of C++ objects bound to JS objects managed by v8
+Resident Set Size, which is the total memory allocated for the process execution. This includes
+the Code Segment, Stack (local variables and pointers) and Heap (objects and closures).
 
-### V8 Heap Statistics
-* total_heap_size: `nodejs.totalHeapSize`
+**Unit:** bytes
 
-* total_heap_size_executable: `nodejs.totalHeapSizeExecutable`
+### nodejs.heapTotal
 
-* total_physical_size: `nodejs.totalPhysicalSize`
+Total size of the allocated heap.
 
-* total_available_size: `nodejs.totalAvailableSize`
+**Unit:** bytes
 
-* used_heap_size: `nodejs.usedHeapSize`
+### nodejs.heapUsed
 
-* heap_size_limit: `nodejs.heapSizeLimit`
+Memory used during the execution of our process.
 
-* malloced_memory: `nodejs.mallocedMemory`
+**Unit:** bytes
 
-* peak_malloced_memory: `nodejs.peakMallocedMemory`
+### nodejs.external
 
-* does_zap_garbage: `nodejs.doesZapGarbage` -  a 0/1 boolean, which signifies
-  whether the --zap_code_space option is enabled or not. This makes V8
-  overwrite heap garbage with a bit pattern. The RSS footprint (resident memory
-  set) gets bigger because it continuously touches all heap pages and that
-  makes them less likely to get swapped out by the operating system.
+Memory usage of C++ objects bound to JavaScript objects managed by V8.
 
-### V8 Heap Space Statistics
+**Unit:** bytes
 
-For each space returned by [v8.getHeapSpaceStatistics](https://nodejs.org/api/v8.html#v8_v8_getheapspacestatistics)
+## V8 Heap Statistics Metrics
 
-* space_size: `nodejs.spaceSize` `id: <space_name>`
-* space_used_size: `nodejs.spaceUsedSize` `id: <space_name>`
-* space_available_size: `nodejs.spaceAvailableSize` `id: <space_name>`
-* physical_space_size: `nodejs.physicalSpaceSize` `id: <space_name>`
+Data is gathered from the [v8.getHeapStatistics] method.
 
-### File descriptor usage
+[v8.getHeapStatistics]: https://nodejs.org/api/v8.html#v8_v8_getheapstatistics
 
-* Number currently opened: `openFileDescriptorsCount`
+### nodejs.doesZapGarbage
 
-* Limit: `maxFileDescriptorsCount` - the maximum number of file descriptors 
-  we can have open at the same time.
+Whether or not the `--zap_code_space` option is enabled.
+
+This makes V8 overwrite heap garbage with a bit pattern. The RSS footprint (resident memory set)
+gets bigger because it continuously touches all heap pages and that makes them less likely to get
+swapped out by the operating system.
+
+**Unit:** boolean
+
+### nodejs.heapSizeLimit
+
+The absolute limit the heap cannot exceed (default limit or `--max_old_space_size`).
+
+**Unit:** bytes
+
+### nodejs.mallocedMemory
+
+Current amount of memory, obtained via `malloc`.
+
+**Unit:** bytes
+
+### nodejs.peakMallocedMemory
+
+Peak amount of memory, obtained via `malloc`.
+
+**Unit:** bytes
+
+### nodejs.totalAvailableSize
+
+Available heap size.
+
+**Unit:** bytes
+
+### nodejs.totalHeapSize
+
+Memory V8 has allocated for the heap. This can grow if `usedHeap` needs more.
+
+**Unit:** bytes
+
+### nodejs.totalHeapSizeExecutable
+
+Memory for compiled bytecode and JITed code.
+
+**Unit:** bytes
+
+### nodejs.totalPhysicalSize
+
+Committed size.
+
+**Unit:** bytes
+
+### nodejs.usedHeapSize
+
+Memory used by application data.
+
+**Unit:** bytes
+
+## V8 Heap Space Statistics Metrics
+
+Data is gathered from the [v8.getHeapSpaceStatistics] method, for each space listed.
+
+Space categories:
+
+* `new_space`: Where new allocations happen; it is fast to allocate and collect garbage here.
+Objects living in the New Space are called the Young Generation. 
+* `old_space`: Object that survived the New Space collector are promoted here; they are called
+the Old Generation. Allocation in the Old Space is fast, but collection is expensive so it is
+less frequently performed.
+* `code_space`: Contains executable code and therefore is marked executable.
+* `map_space`: Contains map objects only.
+* `large_object_space`: Contains promoted large objects which exceed the size limits of other
+spaces. Each object gets its own `mmap` region of memory and these objects are never moved by GC.
+
+[v8.getHeapSpaceStatistics]: https://nodejs.org/api/v8.html#v8_v8_getheapspacestatistics
+
+### nodejs.spaceSize
+
+The allocated size of the space.
+
+**Unit:** bytes
+
+**Dimensions:**
+
+* `id`: Space category.
+
+### nodejs.spaceUsedSize
+
+The used size of the space.
+
+**Unit:** bytes
+
+**Dimensions:**
+
+* `id`: Space category.
+
+### nodejs.spaceAvailableSize
+
+The available size of the space.
+
+**Unit:** bytes
+
+**Dimensions:**
+
+* `id`: Space category.
+
+### nodejs.physicalSpaceSize
+
+The physical size of the space.
+
+**Unit:** bytes
+
+**Dimensions:**
+
+* `id`: Space category.
+
+## File Descriptor Metrics
+
+### openFileDescriptorsCount
+
+Number of file descriptors currently open.
+
+**Unit:** file descriptors
+
+### maxFileDescriptorsCount
+
+The maximum number of file descriptors that can be open at the same time.
+
+**Unit:** file descriptors
