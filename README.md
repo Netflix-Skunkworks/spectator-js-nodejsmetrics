@@ -151,7 +151,7 @@ The rate at which data is being moved from `new_space` to `old_space`.
 
 **Unit:** bytes/second
 
-### Memory Usage Metrics
+## Memory Usage Metrics
 
 ### nodejs.rss
 
