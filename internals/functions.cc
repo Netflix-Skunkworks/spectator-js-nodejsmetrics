@@ -61,7 +61,7 @@ class DetailedHeapStats {
     for (auto i = 0u; i < number_heap_spaces_; ++i) {
       auto h = Nan::New<Object>();
       serialize_heap_space(i, h);
-      heap_spaces->Set(i, h);
+      Nan::Set(heap_spaces, i, h);
     }
   }
 
@@ -210,15 +210,6 @@ NAN_METHOD(EmitGCEvents) {
   Nan::AddGCEpilogueCallback(afterGC);
 }
 
-static v8::Handle<v8::Value> max_fd_value() {
-  struct rlimit rl;
-  getrlimit(RLIMIT_NOFILE, &rl);
-  if (rl.rlim_cur == RLIM_INFINITY) {
-    return Nan::Null();
-  }
-  return Nan::New<Number>(rl.rlim_cur);
-}
-
 static size_t get_dir_count(const char* dir) {
   auto fd = opendir(dir);
   if (fd == nullptr) {
@@ -242,9 +233,17 @@ NAN_METHOD(GetCurMaxFd) {
 
   auto res = Nan::New<Object>();
   auto used = get_dir_count("/proc/self/fd");
-  res->Set(Nan::New("used").ToLocalChecked(), Nan::New<Number>(used));
+  Nan::Set(res, Nan::New("used").ToLocalChecked(), Nan::New<Number>(used));
 
-  res->Set(Nan::New("max").ToLocalChecked(), max_fd_value());
+  auto max = Nan::New("max").ToLocalChecked();
+  struct rlimit rl;
+  getrlimit(RLIMIT_NOFILE, &rl);
+  if (rl.rlim_cur == RLIM_INFINITY) {
+    Nan::Set(res, max, Nan::Null());
+  } else {
+    Nan::Set(res, max, Nan::New<Number>(rl.rlim_cur));
+  }
+
   info.GetReturnValue().Set(res);
 }
 
