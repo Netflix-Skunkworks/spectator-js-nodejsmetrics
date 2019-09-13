@@ -173,7 +173,7 @@ class RuntimeMetrics {
     RuntimeMetrics.updateFdGauges(this, r.GetCurMaxFd);
     const reg = this.registry;
     this._intervals.push(reg.schedulePeriodically(
-      RuntimeMetrics.updateFdGauges, 10000, this, r.GetCurMaxFd));
+      RuntimeMetrics.updateFdGauges, 60000, this, r.GetCurMaxFd));
   }
 
   static updateEvtLoopLag(self) {
@@ -239,7 +239,7 @@ class RuntimeMetrics {
   _cpuHeap() {
     RuntimeMetrics.measureCpuHeap(this);
     const reg = this.registry;
-    this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 10000, this));
+    this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 60000, this));
   }
 
   start() {
