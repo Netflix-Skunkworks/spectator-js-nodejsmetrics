@@ -3,6 +3,7 @@ language: node_js
 node_js:
   - "10"
   - "12"
+  - "14"
 script:
   - make
 after_success:
@@ -10,6 +11,7 @@ after_success:
 deploy:
   on: 
     tags: true
+    node_js: '10'
   provider: npm
   tag: next
   email: dmuino@gmail.com
