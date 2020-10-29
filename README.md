@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/Netflix-Skunkworks/spectator-js-nodejsmetrics.svg?branch=master)](https://travis-ci.org/Netflix-Skunkworks/spectator-js-nodejsmetrics) 
+[![Build Status](https://travis-ci.com/Netflix-Skunkworks/spectator-js-nodejsmetrics.svg?branch=master)](https://travis-ci.com/Netflix-Skunkworks/spectator-js-nodejsmetrics) 
 [![codecov](https://codecov.io/gh/Netflix-Skunkworks/spectator-js-nodejsmetrics/branch/master/graph/badge.svg)](https://codecov.io/gh/Netflix-Skunkworks/spectator-js-nodejsmetrics)
 
 # Introduction
