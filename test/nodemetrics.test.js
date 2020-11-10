@@ -216,9 +216,7 @@ describe('nodemetrics', () => {
     NodeMetrics.measureEvtLoopUtilization(metrics);
 
     const active = metrics.eventLoopActive;
-    const idle = metrics.eventLoopIdle;
     assert.closeTo(active.get(), 200 / 3.0, 1e-6);
-    assert.closeTo(idle.get(), 100 / 3.0, 1e-6);
 
     // 5s, 1s active, 4s idle
     seconds += 5;
@@ -227,7 +225,6 @@ describe('nodemetrics', () => {
     elu.utilization = 1 / 5.0;
     NodeMetrics.measureEvtLoopUtilization(metrics);
     assert.closeTo(active.get(), 100 / 5.0, 1e-6);
-    assert.closeTo(idle.get(), 400 / 5.0, 1e-6);
   });
 
   it('should provide a way to check whether it has started', () => {
