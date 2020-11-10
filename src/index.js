@@ -83,6 +83,10 @@ class RuntimeMetrics {
     });
     this.lastCpuUsage = process.cpuUsage();
     this.lastCpuUsageTime = registry.hrtime();
+    this.eventLoopIdle = registry.gauge('nodejs.eventLoop',
+    { id: 'idle', 'nodejs.version': process.version });
+    this.eventLoopActive = registry.gauge('nodejs.eventLoop',
+    { id: 'active', 'nodejs.version': process.version });
   }
 
   _gcEvents(emitGcFunction) {
@@ -210,6 +214,51 @@ class RuntimeMetrics {
     RuntimeMetrics.measureEvtLoopTime(this);
   }
 
+  static measureEvtLoopUtilization(self) {
+    const now = self.registry.hrtime();
+    const nanos = now[0] * 1e9 + now[1];
+    const lastNanos = self.lastEventLoopTime[0] * 1e9 + self.lastEventLoopTime[1];
+
+    const deltaNanos = nanos - lastNanos;
+    const last = self.lastEventLoop;
+    const current = self.eventLoopUtilization();
+    // compute idle percentage
+    const idle = current.idle * 1e6; // millis to nanos
+    const active = current.active * 1e6;
+    const deltaIdle = idle - last.idle * 1e6;
+    const deltaActive = active - last.active * 1e6;
+
+    self.eventLoopIdle.set(100.0 * deltaIdle / deltaNanos);
+    self.eventLoopActive.set(100.0 * deltaActive / deltaNanos);
+
+    self.lastEventLoopTime = now;
+    self.lastEventLoop = current;
+  }
+
+  _evtLoopUtilization() {
+    const reg = this.registry;
+
+    let eventLoopUtilization;
+    try {
+      eventLoopUtilization = require('perf_hooks').performance.eventLoopUtilization;
+    } catch (e) {
+      reg.logger.debug(`Got: ${e}`);
+    }
+
+    if (typeof eventLoopUtilization !== 'function') {
+      reg.logger.info(
+        'Unable to measure eventLoopUtilization. ' +
+        `Requires Nodejs v12.19.0 or newer: ${process.version}`);
+      return;
+    }
+
+    this.eventLoopUtilization = eventLoopUtilization;
+    this.lastEventLoopTime = this.registry.hrtime();
+    this.lastEventLoop = this.eventLoopUtilization();
+    this._intervals.push(reg.schedulePeriodically(
+      RuntimeMetrics.measureEvtLoopUtilization, 60000, this));
+  }
+
   static measureCpuHeap(self) {
     const memUsage = process.memoryUsage();
     self.rss.set(memUsage.rss);
@@ -252,6 +301,7 @@ class RuntimeMetrics {
     this._fdActivity();
     this._evtLoopLag();
     this._evtLoopTime();
+    this._evtLoopUtilization();
     this._cpuHeap();
     this.started = true;
   }

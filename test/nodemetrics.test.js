@@ -33,7 +33,7 @@ describe('nodemetrics', () => {
   function assertTimer(timer, elapsedTime) {
     const v = elapsedTime;
     assert.isTrue(Math.abs(timer.totalTime - v) < 1e-9, `Expected ${timer.totalTime} to be ${v}`);
-    assert.isTrue(Math.abs(timer.totalOfSquares - v*v) < 1e-9);
+    assert.isTrue(Math.abs(timer.totalOfSquares - v * v) < 1e-9);
     assert.isTrue(Math.abs(timer.max - v) < 1e-9);
     assert.equal(timer.count, 1);
   }
@@ -73,6 +73,7 @@ describe('nodemetrics', () => {
 
     let mapSize;
     let largeSize;
+
     function callbackGenerator(f) {
       for (let gcEvt of gcEvents) {
         f(gcEvt);
@@ -85,7 +86,7 @@ describe('nodemetrics', () => {
         const expectedPromotionRate = oldAfter - gcEvt.before.heapSpaceStats[2].spaceUsedSize;
         const youngAfter = gcEvt.after.heapSpaceStats[1].spaceUsedSize;
         const youngBefore = gcEvt.before.heapSpaceStats[1].spaceUsedSize;
-        let expectedAllocationRate =  youngAfter < youngBefore ? youngBefore - youngAfter : 0;
+        let expectedAllocationRate = youngAfter < youngBefore ? youngBefore - youngAfter : 0;
         // see if we allocated something in map or large
         const beforeMap = gcEvt.before.heapSpaceStats[4].spaceUsedSize;
         const beforeLarge = gcEvt.before.heapSpaceStats[5].spaceUsedSize;
@@ -117,6 +118,7 @@ describe('nodemetrics', () => {
         assertTimer(gcPauseTimer, gcEvt.elapsed);
       }
     }
+
     metrics._gcEvents(callbackGenerator);
   });
 
@@ -137,18 +139,18 @@ describe('nodemetrics', () => {
     }
 
     NodeMetrics.updateFdGauges(metrics, () => {
-      return {used: 42, max: 32768 };
+      return {used: 42, max: 32768};
     });
     assertFd(registry.measurements(), 42, 32768);
 
     NodeMetrics.updateFdGauges(metrics, () => {
-      return {used: 1, max: 1024 };
+      return {used: 1, max: 1024};
     });
     assertFd(registry.measurements(), 1, 1024);
 
     // test max == null (which shouldn't produce a metric)
     NodeMetrics.updateFdGauges(metrics, () => {
-      return {used: 1, max: null };
+      return {used: 1, max: null};
     });
     assertFd(registry.measurements(), 1);
   });
@@ -183,6 +185,49 @@ describe('nodemetrics', () => {
     t = timer.totalTime / 1e9;
     assert.closeTo(t, 0.003, 1e-6);
     assert.equal(timer.count, 1);
+  });
+
+  it('should collect eventLoopUtilization metrics when possible', () => {
+
+    const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
+    const metrics = new NodeMetrics(registry);
+    metrics.lastEventLoopTime = [0, 0];
+    metrics.lastEventLoop = {
+      idle: 0,
+      active: 0,
+      utilization: 0
+    };
+
+    // 3s elapsed, 2 active 1 idle
+    const elu = {
+      idle: 1000,
+      active: 2000,
+      utilization: 2.0 / 3.0
+    };
+    metrics.eventLoopUtilization = () => {
+      return Object.assign({}, elu);
+    };
+
+    let seconds = 3;
+    registry.hrtime = () => {
+      return [seconds, 0];
+    };
+
+    NodeMetrics.measureEvtLoopUtilization(metrics);
+
+    const active = metrics.eventLoopActive;
+    const idle = metrics.eventLoopIdle;
+    assert.closeTo(active.get(), 200 / 3.0, 1e-6);
+    assert.closeTo(idle.get(), 100 / 3.0, 1e-6);
+
+    // 5s, 1s active, 4s idle
+    seconds += 5;
+    elu.idle += 4000;
+    elu.active += 1000;
+    elu.utilization = 1 / 5.0;
+    NodeMetrics.measureEvtLoopUtilization(metrics);
+    assert.closeTo(active.get(), 100 / 5.0, 1e-6);
+    assert.closeTo(idle.get(), 400 / 5.0, 1e-6);
   });
 
   it('should provide a way to check whether it has started', () => {

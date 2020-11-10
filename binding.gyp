@@ -3,7 +3,7 @@
     {
       'target_name': 'spectator_internals',
       'dependencies': [],
-      'sources': ["<!@(ls -1 internals/*.cc)"],
+      'sources': ["internals/functions.cc"],
       'include_dirs' : [
         "<!(node -e \"require('nan')\")"
       ],
