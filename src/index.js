@@ -83,10 +83,7 @@ class RuntimeMetrics {
     });
     this.lastCpuUsage = process.cpuUsage();
     this.lastCpuUsageTime = registry.hrtime();
-    this.eventLoopIdle = registry.gauge('nodejs.eventLoopUtilization',
-    { id: 'idle', 'nodejs.version': process.version });
-    this.eventLoopActive = registry.gauge('nodejs.eventLoopUtilization',
-    { id: 'active', 'nodejs.version': process.version });
+    this.eventLoopActive = registry.gauge('nodejs.eventLoopUtilization', extraTags);
   }
 
   _gcEvents(emitGcFunction) {
@@ -222,13 +219,8 @@ class RuntimeMetrics {
     const deltaNanos = nanos - lastNanos;
     const last = self.lastEventLoop;
     const current = self.eventLoopUtilization();
-    // compute idle percentage
-    const idle = current.idle * 1e6; // millis to nanos
     const active = current.active * 1e6;
-    const deltaIdle = idle - last.idle * 1e6;
     const deltaActive = active - last.active * 1e6;
-
-    self.eventLoopIdle.set(100.0 * deltaIdle / deltaNanos);
     self.eventLoopActive.set(100.0 * deltaActive / deltaNanos);
 
     self.lastEventLoopTime = now;

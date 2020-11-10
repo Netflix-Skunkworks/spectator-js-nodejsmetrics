@@ -103,15 +103,11 @@ a timer once per second.
 
 ### nodejs.eventLoopUtilization
 
-Percentage of time the event loop has been idle or active. If the active value
-approaches 100% but the CPU utilization is low it indicates there are calls
-that are blocking the event loop.
+Percentage of time the event loop has been active. If this value approaches
+100% but the CPU utilization is low it indicates there are calls that are
+blocking the event loop.
 
 **Unit:** percent
-
-**Dimensions:**
-
-* `id`: `idle`, `active`
 
 ## Garbage Collection Metrics
 
