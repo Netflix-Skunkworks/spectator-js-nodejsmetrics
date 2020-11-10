@@ -83,9 +83,9 @@ class RuntimeMetrics {
     });
     this.lastCpuUsage = process.cpuUsage();
     this.lastCpuUsageTime = registry.hrtime();
-    this.eventLoopIdle = registry.gauge('nodejs.eventLoop',
+    this.eventLoopIdle = registry.gauge('nodejs.eventLoopUtilization',
     { id: 'idle', 'nodejs.version': process.version });
-    this.eventLoopActive = registry.gauge('nodejs.eventLoop',
+    this.eventLoopActive = registry.gauge('nodejs.eventLoopUtilization',
     { id: 'active', 'nodejs.version': process.version });
   }
 
