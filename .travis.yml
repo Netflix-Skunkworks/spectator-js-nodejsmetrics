@@ -1,19 +1,19 @@
 dist: xenial
 language: node_js
 node_js:
-  - "10"
-  - "12"
-  - "14"
+- '10'
+- '12'
+- '14'
 script:
-  - make
+- make
 after_success:
-  - make report-coverage
+- make report-coverage
 deploy:
-  on: 
+  on:
     tags: true
-    node_js: '10'
+    node_js: '12'
   provider: npm
   tag: next
   email: dmuino@gmail.com
   api_key:
-    secure: "HM4kqTyYwH7DeveozWG2j2CiPC+CXOun0EzNfVYPvrIanNiFIdxM5N428z4ifyErR0ORxLzly8V9Gmppz9Hl4R1foek5pTpwKHmwfEQDM6Tzoer8fS5HfbosZ9Qxc3iNDgwt/sdnLtu4Zo5Qq85upl7DokHd3aiJh1XOo6V/JYNBdbGGbutYuEfNxc5upGq1zF2Y/9ZXxjhIQTQXkxzMW8DDqGtcibWqKBh6kavNh35baVDZ72R+zY/x51A/wD1RF3hxmiVcAlTQdqsKFdXNw3LrFDvbcCvnzarWWrtzJnzaaj7pzlm9Q4QXbk9Ro5/oh23fyiVDBjfqfLsornhM0HdIGEryoy8k27QH0iD76pkU5oK4fJwTeOEmteaG0ZkslkW3j2ufdho8qMicN/3e2vZpH/hk0gMPt7K/4/k6QTvN1amRHFmHLClVnP0O6AbdFncy803Ss9S5WfixDly4D+6n8i04PuYZR7+gBpkqsSyvC/n3csAQNyScIAuPLs2Kv9IOPmoW1on49xyrc+HypB+t7Goo4U9gXD++pMMMa2LUm73XKyjCgdWtYEC+1U5j3UMO7I2VqL1UlkExkmYlk/Qi6iTYS5FgAoHR1WKvmW62iMjTAJ2aKoAyCva2JVdMHlQp+XGwgqrrnYcHXrKdUsGoM5tPwFER0jky5DkkBfg="
+    secure: rrdc13iVNB+835UvznhptERn3rcP8Uf7V+OsTj2mVmhTSvqfO2WW7PIvODjYYcYCYSQpKd2u3lpRp/sS2hfnTJUanQTiiNVlWsYGC6zoM+jsHbajGQyP7Hie7yN40kdMsWwlwrdmEzyx/LsIuw3rifp0agodJ8g50o2XR16p7hJYdaU2+wh6zRNEE9nebtzFNelHjqzuiQMW4qCk3EgwjVJj7qWaTMSoHBIRyWQ3zS737Ndo5mLwJPsE15OFL++YnPiMpkh8dXLaCPm4YMkVXetz+WEYAe6Yofhw/pYpy55qVgGE+a4LaW4Q2HhCfLeHHYdsN0m8kLn34wHPZ1sHJcDMF91MoEF4FAu3lT0Gjd/MNBqbasT0iSeu3NiICBRIj+WfrTe7l6mgojaicJWxcB78jwKNA60JoRAuozknd6+azTDgmbgIrMPaato09b3R9GDUt6HB0kkfOf85RjSqNE7BzGFsjgQBpwljNfO/PtnrGq05x79ejbpXHgAMi2Srk59W5K4S5jIIUaLM/a6/QFqRDFfPJKRz5xYzHy9gUSAmSbMS0N9q3ja5FdfF8IlyPdcQyXAwH0QrTrJE8T4EyKU6JTBpOS9EjH09X7QPN4Ff8ovQEhjUwq2axJqHQwH3jUnAHPfkNdejdi9rEoqUmAfvkDJDBNxb/2athZd4c5Q=
