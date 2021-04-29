@@ -6,8 +6,6 @@ node_js:
 - '14'
 script:
 - make
-after_success:
-- make report-coverage
 deploy:
   on:
     tags: true
