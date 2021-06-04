@@ -10,14 +10,14 @@
       'conditions': [
         [ 'OS=="mac"', {
           'xcode_settings': {
-            'OTHER_CPLUSPLUSFLAGS' : ['-stdlib=libc++', '-v', '-std=c++11', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ],
-            'OTHER_LDFLAGS': ['-stdlib=libc++'], 
+            'OTHER_CPLUSPLUSFLAGS' : ['-stdlib=libc++', '-v', '-std=c++14', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ],
+            'OTHER_LDFLAGS': ['-stdlib=libc++'],
             'MACOSX_DEPLOYMENT_TARGET': '10.12',
             'GCC_ENABLE_CPP_EXCEPTIONS': 'NO'
           }
         }],
         ['OS=="linux"', {
-          'cflags': ['-std=c++11', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ]
+          'cflags': ['-std=c++14', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ]
         }]
       ]
     }
