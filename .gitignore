@@ -4,3 +4,4 @@ node_modules/
 jsconfig.json
 *.tgz
 build/
+package-lock.json
