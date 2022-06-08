@@ -1,4 +1,4 @@
-[![Snapshot](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/snapshot.yml/badge.svg)](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/snapshot.yml) [![Release](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/release.yml/badge.svg)](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/release.yml)
+[![Snapshot](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/snapshot.yml/badge.svg)](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/snapshot.yml)
 
 # Introduction
 
