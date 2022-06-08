@@ -1,6 +1,6 @@
 {
   "name": "nflx-spectator-nodejsmetrics",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Daniel Muino <dmuino@gmail.com>",
   "main": "src/index.js",
   "homepage": "https://github.org/Netflix/spectator-js",
