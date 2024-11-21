@@ -50,13 +50,15 @@ function updateV8HeapSpaceGauges(registry, extraTags, heapSpaceStats) {
 }
 
 class RuntimeMetrics {
-  constructor(registry) {
+  constructor(registry, opts) {
     if (typeof process.cpuUsage !== 'function' ||
       typeof v8.getHeapSpaceStatistics !== 'function') {
       throw new Error('nflx-spectator-nodemetrics requires node.js 6 or newer');
     }
 
     this.registry = registry;
+    // delay initial cpu measurement for 30 seconds (by default) so that the first value isn't artificially high
+    this.cpuGaugeStartDelay = opts && Number.isInteger(opts.cpuGaugeStartDelay) ? opts.cpuGaugeStartDelay : 30000;
     this.started = false;
     this._intervals = [];
     const extraTags = {'nodejs.version': process.version};
@@ -278,9 +280,11 @@ class RuntimeMetrics {
   }
 
   _cpuHeap() {
-    RuntimeMetrics.measureCpuHeap(this);
-    const reg = this.registry;
-    this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 60000, this));
+    setTimeout(() => {
+      RuntimeMetrics.measureCpuHeap(this);
+      const reg = this.registry;
+      this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 60000, this));
+    }, this.cpuGaugeStartDelay);
   }
 
   start() {

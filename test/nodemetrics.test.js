@@ -10,7 +10,7 @@ describe('nodemetrics', () => {
     // basic test to make sure `start()` with no `stop()`
     // does not prevent the mocha from exiting
     const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
-    const metrics = new NodeMetrics(registry);
+    const metrics = new NodeMetrics(registry, {cpuGaugeStartDelay: 0});
     metrics.start();
   });
 
@@ -18,7 +18,7 @@ describe('nodemetrics', () => {
     // basic test to make sure `start()` actually starts the
     // collection
     const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
-    const metrics = new NodeMetrics(registry);
+    const metrics = new NodeMetrics(registry, {cpuGaugeStartDelay: 0});
     metrics.start();
 
     setTimeout(() => {
@@ -69,7 +69,7 @@ describe('nodemetrics', () => {
       return [0, nanos];
     };
 
-    const metrics = new NodeMetrics(registry);
+    const metrics = new NodeMetrics(registry, {cpuGaugeStartDelay: 0});
 
     let mapSize;
     let largeSize;
@@ -124,7 +124,7 @@ describe('nodemetrics', () => {
 
   it('should collect fd metrics', () => {
     const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
-    const metrics = new NodeMetrics(registry);
+    const metrics = new NodeMetrics(registry, {cpuGaugeStartDelay: 0});
 
     function assertFd(measurements, open, max) {
       for (let m of registry.measurements()) {
@@ -157,7 +157,7 @@ describe('nodemetrics', () => {
 
   it('should collect evt loop lag time', () => {
     const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
-    const metrics = new NodeMetrics(registry);
+    const metrics = new NodeMetrics(registry, {cpuGaugeStartDelay: 0});
 
     let nanos = 0;
     let round = 1;
@@ -190,7 +190,7 @@ describe('nodemetrics', () => {
   it('should collect eventLoopUtilization metrics when possible', () => {
 
     const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
-    const metrics = new NodeMetrics(registry);
+    const metrics = new NodeMetrics(registry, {cpuGaugeStartDelay: 0});
     metrics.lastEventLoopTime = [0, 0];
     metrics.lastEventLoop = {
       idle: 0,
@@ -229,7 +229,7 @@ describe('nodemetrics', () => {
 
   it('should provide a way to check whether it has started', () => {
     const registry = new spectator.Registry({strictMode: true, gaugePollingFrequency: 1});
-    const metrics = new NodeMetrics(registry);
+    const metrics = new NodeMetrics(registry, {cpuGaugeStartDelay: 0});
 
     assert.isFalse(metrics.started);
     metrics.start();
