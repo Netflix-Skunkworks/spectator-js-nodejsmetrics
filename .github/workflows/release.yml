@@ -11,16 +11,20 @@ jobs:
     if: ${{ github.repository == 'Netflix-Skunkworks/spectator-js-nodejsmetrics' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Node 18
-        uses: actions/setup-node@v2
+      - uses: actions/checkout@v4
+
+      - name: Setup Node 18
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "18"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Install Dependencies
         run: npm install
-      - name: Make
+
+      - name: Build
         run: make
+
       - name: Publish
         run: npm publish
         env:
