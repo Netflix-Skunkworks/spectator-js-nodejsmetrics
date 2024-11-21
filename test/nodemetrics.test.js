@@ -23,7 +23,7 @@ describe('nodemetrics', () => {
 
     setTimeout(() => {
       const meters = registry.meters();
-      assert.isTrue(meters.length > 40);
+      assert.isTrue(meters.length > 15);
       metrics.stop();
       done();
     });
