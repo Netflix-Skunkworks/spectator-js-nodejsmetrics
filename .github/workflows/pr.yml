@@ -7,8 +7,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        node-version: [16, 18, 20]
+        os: ["ubuntu-latest", "macos-latest"]
+        node-version: ["18", "20", "22"]
     steps:
       - uses: actions/checkout@v4
 
@@ -20,5 +20,11 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build
-        run: make
+      - name: Test with Coverage
+        run: npm run test-with-coverage
+
+      - name: Check Coverage
+        run: npm run check-coverage
+
+      - name: Lint
+        run: npm run lint
