@@ -29,7 +29,7 @@
   },
   "scripts": {
     "clean": "rm -rf build coverage",
-    "build": "npm install",
+    "build-internals": "node-gyp configure; node-gyp build",
     "lint": "eslint 'src/**/*.js' 'test/**/*.js'",
     "test": "mocha 'test/**/*.test.js'",
     "test-with-coverage": "c8 mocha --reporter min 'test/**/*.test.js'",
