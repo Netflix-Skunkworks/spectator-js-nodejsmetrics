@@ -1,4 +1,5 @@
 [![Snapshot](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/snapshot.yml/badge.svg)](https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics/actions/workflows/snapshot.yml)
+[![npm version](https://badge.fury.io/js/nflx-spectator-nodejsmetrics.svg)](https://badge.fury.io/js/nflx-spectator-nodejsmetrics)
 
 ## spectator-js-nodemetrics
 
