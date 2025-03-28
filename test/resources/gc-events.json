@@ -114,122 +114,123 @@
         }
       ]
     }
-  },{
-  "type": "incrementalMarking",
-  "elapsed": 0.00001,
-  "before": {
-    "totalHeapSize": 0,
-    "totalHeapSizeExecutable": 0,
-    "totalPhysicalSize": 0,
-    "totalAvailableSize": 0,
-    "usedHeapSize": 0,
-    "heapSizeLimit": 0,
-    "mallocedMemory": 0,
-    "peakMallocedMemory": 0,
-    "numNativeContexts": 0,
-    "numDetachedContexts": 0,
-    "heapSpaceStats": [
-      {
-        "spaceName": "read_only_space",
-        "spaceSize": 524288,
-        "spaceUsedSize": 35200,
-        "spaceAvailableSize": 480384,
-        "physicalSpaceSize": 43904
-      },
-      {
-        "spaceName": "new_space",
-        "spaceSize": 4194304,
-        "spaceUsedSize": 837160,
-        "spaceAvailableSize": 1225176,
-        "physicalSpaceSize": 2829312
-      },
-      {
-        "spaceName": "old_space",
-        "spaceSize": 4427776,
-        "spaceUsedSize": 3316296,
-        "spaceAvailableSize": 106488,
-        "physicalSpaceSize": 3394632
-      },
-      {
-        "spaceName": "code_space",
-        "spaceSize": 1048576,
-        "spaceUsedSize": 834304,
-        "spaceAvailableSize": 0,
-        "physicalSpaceSize": 867072
-      },
-      {
-        "spaceName": "map_space",
-        "spaceSize": 536576,
-        "spaceUsedSize": 377784,
-        "spaceAvailableSize": 0,
-        "physicalSpaceSize": 395192
-      },
-      {
-        "spaceName": "large_object_space",
-        "spaceSize": 233914368,
-        "spaceUsedSize": 232249584,
-        "spaceAvailableSize": 1282072064,
-        "physicalSpaceSize": 233914368
-      }
-    ]
   },
-  "after": {
-    "totalHeapSize": 244645888,
-    "totalHeapSizeExecutable": 2621440,
-    "totalPhysicalSize": 241444480,
-    "totalAvailableSize": 1283884112,
-    "usedHeapSize": 237650328,
-    "heapSizeLimit": 1526909922,
-    "mallocedMemory": 8192,
-    "peakMallocedMemory": 421560,
-    "numNativeContexts": 1,
-    "numDetachedContexts": 0,
-    "heapSpaceStats": [
-      {
-        "spaceName": "read_only_space",
-        "spaceSize": 524288,
-        "spaceUsedSize": 35200,
-        "spaceAvailableSize": 480384,
-        "physicalSpaceSize": 43904
-      },
-      {
-        "spaceName": "new_space",
-        "spaceSize": 4194304,
-        "spaceUsedSize": 837160,
-        "spaceAvailableSize": 1225176,
-        "physicalSpaceSize": 2829312
-      },
-      {
-        "spaceName": "old_space",
-        "spaceSize": 4427776,
-        "spaceUsedSize": 3316296,
-        "spaceAvailableSize": 106488,
-        "physicalSpaceSize": 3394632
-      },
-      {
-        "spaceName": "code_space",
-        "spaceSize": 1048576,
-        "spaceUsedSize": 834304,
-        "spaceAvailableSize": 0,
-        "physicalSpaceSize": 867072
-      },
-      {
-        "spaceName": "map_space",
-        "spaceSize": 536576,
-        "spaceUsedSize": 377784,
-        "spaceAvailableSize": 0,
-        "physicalSpaceSize": 395192
-      },
-      {
-        "spaceName": "large_object_space",
-        "spaceSize": 233914368,
-        "spaceUsedSize": 232249584,
-        "spaceAvailableSize": 1282072064,
-        "physicalSpaceSize": 233914368
-      }
-    ]
-  }
-},
+  {
+    "type": "incrementalMarking",
+    "elapsed": 0.00001,
+    "before": {
+      "totalHeapSize": 0,
+      "totalHeapSizeExecutable": 0,
+      "totalPhysicalSize": 0,
+      "totalAvailableSize": 0,
+      "usedHeapSize": 0,
+      "heapSizeLimit": 0,
+      "mallocedMemory": 0,
+      "peakMallocedMemory": 0,
+      "numNativeContexts": 0,
+      "numDetachedContexts": 0,
+      "heapSpaceStats": [
+        {
+          "spaceName": "read_only_space",
+          "spaceSize": 524288,
+          "spaceUsedSize": 35200,
+          "spaceAvailableSize": 480384,
+          "physicalSpaceSize": 43904
+        },
+        {
+          "spaceName": "new_space",
+          "spaceSize": 4194304,
+          "spaceUsedSize": 837160,
+          "spaceAvailableSize": 1225176,
+          "physicalSpaceSize": 2829312
+        },
+        {
+          "spaceName": "old_space",
+          "spaceSize": 4427776,
+          "spaceUsedSize": 3316296,
+          "spaceAvailableSize": 106488,
+          "physicalSpaceSize": 3394632
+        },
+        {
+          "spaceName": "code_space",
+          "spaceSize": 1048576,
+          "spaceUsedSize": 834304,
+          "spaceAvailableSize": 0,
+          "physicalSpaceSize": 867072
+        },
+        {
+          "spaceName": "map_space",
+          "spaceSize": 536576,
+          "spaceUsedSize": 377784,
+          "spaceAvailableSize": 0,
+          "physicalSpaceSize": 395192
+        },
+        {
+          "spaceName": "large_object_space",
+          "spaceSize": 233914368,
+          "spaceUsedSize": 232249584,
+          "spaceAvailableSize": 1282072064,
+          "physicalSpaceSize": 233914368
+        }
+      ]
+    },
+    "after": {
+      "totalHeapSize": 244645888,
+      "totalHeapSizeExecutable": 2621440,
+      "totalPhysicalSize": 241444480,
+      "totalAvailableSize": 1283884112,
+      "usedHeapSize": 237650328,
+      "heapSizeLimit": 1526909922,
+      "mallocedMemory": 8192,
+      "peakMallocedMemory": 421560,
+      "numNativeContexts": 1,
+      "numDetachedContexts": 0,
+      "heapSpaceStats": [
+        {
+          "spaceName": "read_only_space",
+          "spaceSize": 524288,
+          "spaceUsedSize": 35200,
+          "spaceAvailableSize": 480384,
+          "physicalSpaceSize": 43904
+        },
+        {
+          "spaceName": "new_space",
+          "spaceSize": 4194304,
+          "spaceUsedSize": 837160,
+          "spaceAvailableSize": 1225176,
+          "physicalSpaceSize": 2829312
+        },
+        {
+          "spaceName": "old_space",
+          "spaceSize": 4427776,
+          "spaceUsedSize": 3316296,
+          "spaceAvailableSize": 106488,
+          "physicalSpaceSize": 3394632
+        },
+        {
+          "spaceName": "code_space",
+          "spaceSize": 1048576,
+          "spaceUsedSize": 834304,
+          "spaceAvailableSize": 0,
+          "physicalSpaceSize": 867072
+        },
+        {
+          "spaceName": "map_space",
+          "spaceSize": 536576,
+          "spaceUsedSize": 377784,
+          "spaceAvailableSize": 0,
+          "physicalSpaceSize": 395192
+        },
+        {
+          "spaceName": "large_object_space",
+          "spaceSize": 233914368,
+          "spaceUsedSize": 232249584,
+          "spaceAvailableSize": 1282072064,
+          "physicalSpaceSize": 233914368
+        }
+      ]
+    }
+  },
   {
     "type": "markSweepCompact",
     "elapsed": 0.005,
@@ -462,7 +463,6 @@
       ]
     }
   },
-
   {
     "type": "markSweepCompact",
     "elapsed": 0.005,

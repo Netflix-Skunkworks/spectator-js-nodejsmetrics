@@ -2,6 +2,9 @@
 #include <chrono>
 #include <sys/resource.h>
 
+using Nan::Set;
+using Nan::New;
+
 using v8::Function;
 using v8::Local;
 using v8::Number;
@@ -26,8 +29,7 @@ class DetailedHeapStats {
         number_heap_spaces_(isolate_->NumberOfHeapSpaces()),
         heap_space_stats_(new v8::HeapSpaceStatistics[number_heap_spaces_]),
         collection_time_(0) {
-    memset(heap_space_stats_, 0,
-           sizeof(v8::HeapSpaceStatistics) * number_heap_spaces_);
+    memset(heap_space_stats_, 0, sizeof(v8::HeapSpaceStatistics) * number_heap_spaces_);
   }
 
   DetailedHeapStats(const DetailedHeapStats& other) {
@@ -56,12 +58,12 @@ class DetailedHeapStats {
 
   void serialize(Local<Object> obj) {
     serialize_heap_stats(obj);
-    auto heap_spaces = Nan::New<v8::Array>(number_heap_spaces_);
-    Nan::Set(obj, Nan::New("heapSpaceStats").ToLocalChecked(), heap_spaces);
+    auto heap_spaces = New<v8::Array>(number_heap_spaces_);
+    Set(obj, New("heapSpaceStats").ToLocalChecked(), heap_spaces);
     for (auto i = 0u; i < number_heap_spaces_; ++i) {
-      auto h = Nan::New<Object>();
+      auto h = New<Object>();
       serialize_heap_space(i, h);
-      Nan::Set(heap_spaces, i, h);
+      Set(heap_spaces, i, h);
     }
   }
 
@@ -74,42 +76,27 @@ class DetailedHeapStats {
 
   void serialize_heap_space(size_t space_idx, Local<Object> obj) {
     v8::HeapSpaceStatistics& space = heap_space_stats_[space_idx];
-    Nan::Set(obj, Nan::New("spaceName").ToLocalChecked(),
-             Nan::New(space.space_name()).ToLocalChecked());
-    Nan::Set(obj, Nan::New("spaceSize").ToLocalChecked(),
-             Nan::New<Number>(space.space_size()));
-    Nan::Set(obj, Nan::New("spaceUsedSize").ToLocalChecked(),
-             Nan::New<Number>(space.space_used_size()));
-    Nan::Set(obj, Nan::New("spaceAvailableSize").ToLocalChecked(),
-             Nan::New<Number>(space.space_available_size()));
-    Nan::Set(obj, Nan::New("physicalSpaceSize").ToLocalChecked(),
-             Nan::New<Number>(space.physical_space_size()));
+    Set(obj, New("spaceName").ToLocalChecked(), New(space.space_name()).ToLocalChecked());
+    Set(obj, New("spaceSize").ToLocalChecked(), New<Number>(space.space_size()));
+    Set(obj, New("spaceUsedSize").ToLocalChecked(), New<Number>(space.space_used_size()));
+    Set(obj, New("spaceAvailableSize").ToLocalChecked(), New<Number>(space.space_available_size()));
+    Set(obj, New("physicalSpaceSize").ToLocalChecked(), New<Number>(space.physical_space_size()));
   }
 
   void serialize_heap_stats(Local<Object> obj) {
-    Nan::Set(obj, Nan::New("totalHeapSize").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.total_heap_size()));
-    Nan::Set(obj, Nan::New("totalHeapSizeExecutable").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.total_heap_size_executable()));
-    Nan::Set(obj, Nan::New("totalPhysicalSize").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.total_physical_size()));
-    Nan::Set(obj, Nan::New("totalAvailableSize").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.total_available_size()));
-    Nan::Set(obj, Nan::New("usedHeapSize").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.used_heap_size()));
-    Nan::Set(obj, Nan::New("heapSizeLimit").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.heap_size_limit()));
+    Set(obj, New("totalHeapSize").ToLocalChecked(), New<Number>(heap_stats_.total_heap_size()));
+    Set(obj, New("totalHeapSizeExecutable").ToLocalChecked(), New<Number>(heap_stats_.total_heap_size_executable()));
+    Set(obj, New("totalPhysicalSize").ToLocalChecked(), New<Number>(heap_stats_.total_physical_size()));
+    Set(obj, New("totalAvailableSize").ToLocalChecked(), New<Number>(heap_stats_.total_available_size()));
+    Set(obj, New("usedHeapSize").ToLocalChecked(), New<Number>(heap_stats_.used_heap_size()));
+    Set(obj, New("heapSizeLimit").ToLocalChecked(), New<Number>(heap_stats_.heap_size_limit()));
 #if NODE_MODULE_VERSION >= NODE_7_0_MODULE_VERSION
-    Nan::Set(obj, Nan::New("mallocedMemory").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.malloced_memory()));
-    Nan::Set(obj, Nan::New("peakMallocedMemory").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.peak_malloced_memory()));
+    Set(obj, New("mallocedMemory").ToLocalChecked(), New<Number>(heap_stats_.malloced_memory()));
+    Set(obj, New("peakMallocedMemory").ToLocalChecked(), New<Number>(heap_stats_.peak_malloced_memory()));
 #endif
 #if NODE_MODULE_VERSION >= NODE_10_0_MODULE_VERSION
-    Nan::Set(obj, Nan::New("numNativeContexts").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.number_of_native_contexts()));
-    Nan::Set(obj, Nan::New("numDetachedContexts").ToLocalChecked(),
-             Nan::New<Number>(heap_stats_.number_of_detached_contexts()));
+    Set(obj, New("numNativeContexts").ToLocalChecked(), New<Number>(heap_stats_.number_of_native_contexts()));
+    Set(obj, New("numDetachedContexts").ToLocalChecked(), New<Number>(heap_stats_.number_of_detached_contexts()));
 #endif
   }
 };
@@ -167,23 +154,21 @@ static void async_callback(uv_async_t* handle) {
   auto* info = static_cast<GCInfo*>(handle->data);
   auto elapsed = info->elapsed();
 
-  auto res = Nan::New<Object>();
-  auto before = Nan::New<Object>();
-  auto after = Nan::New<Object>();
+  auto res = New<Object>();
+  auto before = New<Object>();
+  auto after = New<Object>();
 
   info->serialize(before, after);
   const char* typeStr = gcTypeToStr(info->type());
 
-  Nan::Set(res, Nan::New("type").ToLocalChecked(),
-           Nan::New(typeStr).ToLocalChecked());
-  Nan::Set(res, Nan::New("elapsed").ToLocalChecked(),
-           Nan::New<Number>(elapsed));
-  Nan::Set(res, Nan::New("before").ToLocalChecked(), before);
-  Nan::Set(res, Nan::New("after").ToLocalChecked(), after);
+  Set(res, New("type").ToLocalChecked(), New(typeStr).ToLocalChecked());
+  Set(res, New("elapsed").ToLocalChecked(), New<Number>(elapsed));
+  Set(res, New("before").ToLocalChecked(), before);
+  Set(res, New("after").ToLocalChecked(), after);
 
   Local<v8::Value> arguments[] = {res};
-  Local<Function> callback = Nan::New(gcResource->callback);
-  Local<Object> target = Nan::New<Object>();
+  Local<Function> callback = New(gcResource->callback);
+  Local<Object> target = New<Object>();
   gcResource->runInAsyncScope(target, callback, 1, arguments);
 
   delete info;
@@ -201,8 +186,7 @@ static NAN_GC_CALLBACK(afterGC) {
 
 NAN_METHOD(EmitGCEvents) {
   if (info.Length() != 1 || !info[0]->IsFunction()) {
-    return Nan::ThrowError(
-        "Expecting a function to be called after GC events.");
+    return Nan::ThrowError("Expecting a function to be called after GC events.");
   }
 
   auto callback = Nan::To<Function>(info[0]).ToLocalChecked();
@@ -231,17 +215,17 @@ static size_t get_dir_count(const char* dir) {
 NAN_METHOD(GetCurMaxFd) {
   Nan::HandleScope scope;
 
-  auto res = Nan::New<Object>();
+  auto res = New<Object>();
   auto used = get_dir_count("/proc/self/fd");
-  Nan::Set(res, Nan::New("used").ToLocalChecked(), Nan::New<Number>(used));
+  Set(res, New("used").ToLocalChecked(), New<Number>(used));
 
-  auto max = Nan::New("max").ToLocalChecked();
+  auto max = New("max").ToLocalChecked();
   struct rlimit rl;
   getrlimit(RLIMIT_NOFILE, &rl);
   if (rl.rlim_cur == RLIM_INFINITY) {
-    Nan::Set(res, max, Nan::Null());
+    Set(res, max, Nan::Null());
   } else {
-    Nan::Set(res, max, Nan::New<Number>(rl.rlim_cur));
+    Set(res, max, New<Number>(rl.rlim_cur));
   }
 
   info.GetReturnValue().Set(res);

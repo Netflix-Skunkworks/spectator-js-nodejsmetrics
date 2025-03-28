@@ -1,6 +1,4 @@
-'use strict';
-
-const r = require('bindings')('spectator_internals');
+const internals = require('bindings')('spectator_internals');
 const v8 = require('v8');
 
 function deltaMicros(end, start) {
@@ -11,6 +9,7 @@ function deltaMicros(end, start) {
     deltaNanos += 1000000000;
     deltaSecs -= 1;
   }
+
   return Math.trunc(deltaSecs * 1e6 + deltaNanos / 1e3);
 }
 
@@ -40,50 +39,75 @@ function updateV8HeapSpaceGauges(registry, extraTags, heapSpaceStats) {
     for (const key of Object.keys(space)) {
       if (key !== 'space_name') {
         const name = 'nodejs.' + toCamelCase(key);
-        const tags = Object.assign({
-          id: id
-        }, extraTags);
+        const tags = Object.assign({'id': id}, extraTags);
         registry.gauge(name, tags).set(space[key]);
       }
     }
   }
 }
 
+/**
+ * Translate high resolution time into a number of seconds, for recording a timer value.
+ *
+ * @param {number|number[]} seconds
+ *     Number of seconds, which may be fractional, or an array of two numbers [seconds, nanoseconds],
+ *     such as the return value from process.hrtime().
+ *
+ * @param {number} [nanos]
+ *     If seconds is a number, then nanos will be interpreted as a number of nanoseconds.
+ *
+ * @return {number}
+ *     The total number of seconds that have elapsed, which may be fractional. Any negative values
+ *     that are calculated will be discarded by the Timer implementation of spectator-js.
+ */
+function hrSeconds(seconds, nanos) {
+  let totalSeconds;
+
+  if (seconds instanceof Array) {
+    totalSeconds = seconds[0] + (seconds[1] / 1e9 || 0);
+  } else {
+    totalSeconds = seconds + (nanos / 1e9 || 0);
+  }
+
+  return totalSeconds;
+}
+
+function schedulePeriodically(args) {
+  const id = setInterval.apply(this, arguments);
+  id.unref();
+  return id;
+}
+
 class RuntimeMetrics {
   constructor(registry) {
-    if (typeof process.cpuUsage !== 'function' ||
-      typeof v8.getHeapSpaceStatistics !== 'function') {
-      throw new Error('nflx-spectator-nodemetrics requires node.js 6 or newer');
+    if (typeof process.cpuUsage !== 'function' || typeof v8.getHeapSpaceStatistics !== 'function') {
+      throw new Error('nflx-spectator-nodemetrics requires Node.js >= 6.0');
     }
 
     this.registry = registry;
     this.started = false;
     this._intervals = [];
-    const extraTags = {'nodejs.version': process.version};
-    this.rss = registry.gauge('nodejs.rss', extraTags);
-    this.heapTotal = registry.gauge('nodejs.heapTotal', extraTags);
-    this.heapUsed = registry.gauge('nodejs.heapUsed', extraTags);
-    this.external = registry.gauge('nodejs.external', extraTags);
-    this.evtLoopTime = registry.timer('nodejs.eventLoop', extraTags);
-    this.maxDataSize = registry.gauge('nodejs.gc.maxDataSize', extraTags);
-    this.liveDataSize = registry.gauge('nodejs.gc.liveDataSize', extraTags);
-    this.allocationRate = registry.counter('nodejs.gc.allocationRate', extraTags);
-    this.promotionRate = registry.counter('nodejs.gc.promotionRate', extraTags);
+    this._versionTag = {'nodejs.version': process.version};
 
-    this.openFd = registry.gauge('openFileDescriptorsCount', extraTags);
-    this.maxFd = registry.gauge('maxFileDescriptorsCount', extraTags);
-    this.evtLoopLagTimer = registry.timer('nodejs.eventLoopLag', extraTags);
-    this.cpuUsageUser = registry.gauge('nodejs.cpuUsage', {
-      id: 'user',
-      'nodejs.version': process.version
-    });
-    this.cpuUsageSystem = registry.gauge('nodejs.cpuUsage', {
-      id: 'system',
-      'nodejs.version': process.version
-    });
-    this.lastCpuUsage = process.cpuUsage();
-    this.lastCpuUsageTime = registry.hrtime();
-    this.eventLoopActive = registry.gauge('nodejs.eventLoopUtilization', extraTags);
+    this.external = registry.gauge('nodejs.external', this._versionTag);
+    this.heapTotal = registry.gauge('nodejs.heapTotal', this._versionTag);
+    this.heapUsed = registry.gauge('nodejs.heapUsed', this._versionTag);
+    this.rss = registry.gauge('nodejs.rss', this._versionTag);
+
+    this.eventLoopActive = registry.gauge('nodejs.eventLoopUtilization', this._versionTag);
+    this.eventLoopLagTimer = registry.timer('nodejs.eventLoopLag', this._versionTag);
+    this.eventLoopTime = registry.timer('nodejs.eventLoop', this._versionTag);
+
+    this.allocationRate = registry.counter('nodejs.gc.allocationRate', this._versionTag);
+    this.liveDataSize = registry.gauge('nodejs.gc.liveDataSize', this._versionTag);
+    this.maxDataSize = registry.gauge('nodejs.gc.maxDataSize', this._versionTag);
+    this.promotionRate = registry.counter('nodejs.gc.promotionRate', this._versionTag);
+
+    this.openFd = registry.gauge('openFileDescriptorsCount', this._versionTag);
+    this.maxFd = registry.gauge('maxFileDescriptorsCount', this._versionTag);
+
+    this.cpuUsageSystem = registry.gauge('nodejs.cpuUsage', {'id': 'system', 'nodejs.version': process.version});
+    this.cpuUsageUser = registry.gauge('nodejs.cpuUsage', {'id': 'user', 'nodejs.version': process.version});
   }
 
   _gcEvents(emitGcFunction) {
@@ -91,27 +115,26 @@ class RuntimeMetrics {
     let prevMapSize;
     let prevLargeSize;
 
-    emitGcFunction((evt) => {
+    emitGcFunction((event) => {
       // max data size
-      self.maxDataSize.set(evt.after.heapSizeLimit);
-      self.registry.timer('nodejs.gc.pause',
-        {id: evt.type, 'nodejs.version': process.version}).record(evt.elapsed);
+      self.maxDataSize.set(event.after.heapSizeLimit);
+      self.registry.timer('nodejs.gc.pause', {'id': event.type, 'nodejs.version': process.version}).record(event.elapsed);
 
       const space = {};
-      for (let idx = 0; idx < evt.before.heapSpaceStats.length; ++idx) {
-        const name = evt.before.heapSpaceStats[idx].spaceName;
+      for (let idx = 0; idx < event.before.heapSpaceStats.length; ++idx) {
+        const name = event.before.heapSpaceStats[idx].spaceName;
         if (name === 'new_space') {
-          space.beforeNew = evt.before.heapSpaceStats[idx];
-          space.afterNew = evt.after.heapSpaceStats[idx];
+          space.beforeNew = event.before.heapSpaceStats[idx];
+          space.afterNew = event.after.heapSpaceStats[idx];
         } else if (name === 'old_space') {
-          space.beforeOld = evt.before.heapSpaceStats[idx];
-          space.afterOld = evt.after.heapSpaceStats[idx];
+          space.beforeOld = event.before.heapSpaceStats[idx];
+          space.afterOld = event.after.heapSpaceStats[idx];
         } else if (name === 'map_space') {
-          space.beforeMap = evt.before.heapSpaceStats[idx];
-          space.afterMap = evt.after.heapSpaceStats[idx];
+          space.beforeMap = event.before.heapSpaceStats[idx];
+          space.afterMap = event.after.heapSpaceStats[idx];
         } else if (name === 'large_object_space') {
-          space.beforeLarge = evt.before.heapSpaceStats[idx];
-          space.afterLarge = evt.after.heapSpaceStats[idx];
+          space.beforeLarge = event.before.heapSpaceStats[idx];
+          space.afterLarge = event.after.heapSpaceStats[idx];
         }
       }
 
@@ -120,25 +143,27 @@ class RuntimeMetrics {
         const oldAfter = space.afterOld.spaceUsedSize;
         if (oldAfter > oldBefore) {
           // data promoted to old_space
-          self.promotionRate.add(oldAfter - oldBefore);
+          self.promotionRate.increment(oldAfter - oldBefore);
         }
 
-        const live = self.liveDataSize;
-        if (oldAfter < oldBefore || evt.type === 'markSweepCompact') {
-          live.set(oldAfter);
+        if (oldAfter < oldBefore || event.type === 'markSweepCompact') {
+          self._liveDataSizeCache = oldAfter;
+          self.liveDataSize.set(oldAfter);
         } else {
-          // refresh it to prevent expiration of the gauge if no GC events occur
-          live.set(live.get());
+          // refresh the value, to prevent expiration of the gauge, if no GC events occur
+          if (self._liveDataSizeCache !== undefined) {
+            self.liveDataSize.set(self._liveDataSizeCache);
+          }
         }
       }
 
+      let totalAllocationRate;
       if (space.beforeNew) {
         const youngBefore = space.beforeNew.spaceUsedSize;
         const youngAfter = space.afterNew.spaceUsedSize;
-
         if (youngBefore > youngAfter) {
           // garbage generated and collected
-          self.allocationRate.add(youngBefore - youngAfter);
+          totalAllocationRate = youngBefore - youngAfter;
         }
       }
 
@@ -146,7 +171,7 @@ class RuntimeMetrics {
         // compute the delta from our last GC event to now
         const mapBefore = space.beforeMap.spaceUsedSize;
         if (prevMapSize && mapBefore > prevMapSize) {
-          self.allocationRate.add(mapBefore - prevMapSize);
+          totalAllocationRate += mapBefore - prevMapSize;
         }
         prevMapSize = space.afterMap.spaceUsedSize;
       }
@@ -155,9 +180,13 @@ class RuntimeMetrics {
         // compute the delta from our last GC event to now
         const largeBefore = space.beforeLarge.spaceUsedSize;
         if (prevLargeSize && largeBefore > prevLargeSize) {
-          self.allocationRate.add(largeBefore - prevLargeSize);
+          totalAllocationRate += largeBefore - prevLargeSize;
         }
         prevLargeSize = space.afterLarge.spaceUsedSize;
+      }
+
+      if (totalAllocationRate !== undefined) {
+        self.allocationRate.increment(totalAllocationRate);
       }
     });
   }
@@ -171,48 +200,42 @@ class RuntimeMetrics {
   }
 
   _fdActivity() {
-    RuntimeMetrics.updateFdGauges(this, r.GetCurMaxFd);
-    const reg = this.registry;
-    this._intervals.push(reg.schedulePeriodically(
-      RuntimeMetrics.updateFdGauges, 60000, this, r.GetCurMaxFd));
+    RuntimeMetrics.updateFdGauges(this, internals.GetCurMaxFd);
+    this._intervals.push(schedulePeriodically(RuntimeMetrics.updateFdGauges, 60000, this, internals.GetCurMaxFd));
   }
 
-  static updateEvtLoopLag(self) {
-    const now = self.registry.hrtime();
+  static updateEventLoopLag(self) {
+    const now = process.hrtime();
     const nanos = now[0] * 1e9 + now[1];
     const lag = nanos - self._lastNanos - 1e9;
     if (lag > 0) {
-      self.evtLoopLagTimer.record(0, lag);
+      self.eventLoopLagTimer.record(hrSeconds(0, lag));
     }
     self._lastNanos = nanos;
   }
 
-  _evtLoopLag() {
-    const now = this.registry.hrtime();
+  _eventLoopLag() {
+    const now = process.hrtime();
     this._lastNanos = now[0] * 1e9 + now[1];
-    const reg = this.registry;
-    this._intervals.push(reg.schedulePeriodically(
-      RuntimeMetrics.updateEvtLoopLag, 1000, this));
+    this._intervals.push(schedulePeriodically(RuntimeMetrics.updateEventLoopLag, 1000, this));
   }
 
-  static measureEvtLoopTime(self) {
+  static measureEventLoopTime(self) {
     setImmediate(() => {
-      const start = self.registry.hrtime();
+      const start = process.hrtime();
       setImmediate(() => {
-        self.evtLoopTime.record(self.registry.hrtime(start));
+        self.eventLoopTime.record(hrSeconds(process.hrtime(start)));
       });
     });
   }
 
-  _evtLoopTime() {
-    const reg = this.registry;
-    this._intervals.push(reg.schedulePeriodically(
-      RuntimeMetrics.measureEvtLoopTime, 500, this));
-    RuntimeMetrics.measureEvtLoopTime(this);
+  _eventLoopTime() {
+    this._intervals.push(schedulePeriodically(RuntimeMetrics.measureEventLoopTime, 500, this));
+    RuntimeMetrics.measureEventLoopTime(this);
   }
 
-  static measureEvtLoopUtilization(self) {
-    const now = self.registry.hrtime();
+  static measureEventLoopUtilization(self) {
+    const now = process.hrtime();  // `[seconds, nanoseconds]` tuple `Array`
     const nanos = now[0] * 1e9 + now[1];
     const lastNanos = self.lastEventLoopTime[0] * 1e9 + self.lastEventLoopTime[1];
 
@@ -227,28 +250,24 @@ class RuntimeMetrics {
     self.lastEventLoop = current;
   }
 
-  _evtLoopUtilization() {
-    const reg = this.registry;
-
+  _eventLoopUtilization() {
     let eventLoopUtilization;
+
     try {
       eventLoopUtilization = require('perf_hooks').performance.eventLoopUtilization;
     } catch (e) {
-      reg.logger.debug(`Got: ${e}`);
+      this.registry.logger.debug(`Got: ${e}`);
     }
 
     if (typeof eventLoopUtilization !== 'function') {
-      reg.logger.info(
-        'Unable to measure eventLoopUtilization. ' +
-        `Requires Nodejs v12.19.0 or newer: ${process.version}`);
+      this.registry.logger.info(`Unable to measure eventLoopUtilization. Requires Nodejs v12.19.0 or newer: ${process.version}`);
       return;
     }
 
     this.eventLoopUtilization = eventLoopUtilization;
-    this.lastEventLoopTime = this.registry.hrtime();
+    this.lastEventLoopTime = process.hrtime();  // `[seconds, nanoseconds]` tuple `Array`
     this.lastEventLoop = this.eventLoopUtilization();
-    this._intervals.push(reg.schedulePeriodically(
-      RuntimeMetrics.measureEvtLoopUtilization, 60000, this));
+    this._intervals.push(schedulePeriodically(RuntimeMetrics.measureEventLoopUtilization, 60000, this));
   }
 
   static measureCpuHeap(self) {
@@ -259,27 +278,21 @@ class RuntimeMetrics {
     self.external.set(memUsage.external);
 
     const newCpuUsage = process.cpuUsage();
-    const newCpuUsageTime = process.hrtime();
+    const newCpuUsageTime = process.hrtime();  // `[seconds, nanoseconds]` tuple `Array`
 
     const elapsedMicros = deltaMicros(newCpuUsageTime, self.lastCpuUsageTime);
-    updatePercentage(self.cpuUsageUser, newCpuUsage.user,
-        self.lastCpuUsage.user, elapsedMicros);
-    updatePercentage(self.cpuUsageSystem, newCpuUsage.system,
-        self.lastCpuUsage.system, elapsedMicros);
+    updatePercentage(self.cpuUsageUser, newCpuUsage.user, self.lastCpuUsage.user, elapsedMicros);
+    updatePercentage(self.cpuUsageSystem, newCpuUsage.system, self.lastCpuUsage.system, elapsedMicros);
 
     self.lastCpuUsageTime = newCpuUsageTime;
     self.lastCpuUsage = newCpuUsage;
 
-    updateV8HeapGauges(self.registry,
-        {'nodejs.version': process.version}, v8.getHeapStatistics());
-
-    updateV8HeapSpaceGauges(self.registry, {'nodejs.version': process.version},
-        v8.getHeapSpaceStatistics());
+    updateV8HeapGauges(self.registry, {'nodejs.version': process.version}, v8.getHeapStatistics());
+    updateV8HeapSpaceGauges(self.registry, {'nodejs.version': process.version}, v8.getHeapSpaceStatistics());
   }
 
   _cpuHeap() {
-    const reg = this.registry;
-    this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 60000, this));
+    this._intervals.push(schedulePeriodically(RuntimeMetrics.measureCpuHeap, 60000, this));
   }
 
   start() {
@@ -288,11 +301,11 @@ class RuntimeMetrics {
       return;
     }
 
-    this._gcEvents(r.EmitGCEvents);
+    this._gcEvents(internals.EmitGCEvents);
     this._fdActivity();
-    this._evtLoopLag();
-    this._evtLoopTime();
-    this._evtLoopUtilization();
+    this._eventLoopLag();
+    this._eventLoopTime();
+    this._eventLoopUtilization();
     this._cpuHeap();
     this.started = true;
   }

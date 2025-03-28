@@ -22,8 +22,14 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Build
-        run: make
+      - name: Test with Coverage
+        run: npm run test-with-coverage
+
+      - name: Check Coverage
+        run: npm run check-coverage
+
+      - name: Lint
+        run: npm run lint
 
       - name: Publish
         run: npm publish

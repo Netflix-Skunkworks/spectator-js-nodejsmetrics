@@ -1,38 +1,38 @@
 {
   "name": "nflx-spectator-nodejsmetrics",
-  "version": "2.0.2",
-  "author": "Matthew Johnson <matthewj@netflix.com>",
-  "main": "src/index.js",
-  "homepage": "https://github.org/Netflix/spectator-js",
-  "repository": {
-    "type": "git",
-    "url": "ssh://git@github.com:Netflix/spectator-js.git"
-  },
+  "version": "3.0.0-rc.0",
   "license": "Apache-2.0",
-  "dependencies": {
-    "bindings": "^1.5.0",
-    "nan": "^2.14.2",
-    "nflx-spectator": "^2.0.0",
-    "node-gyp": "^10.2.0"
-  },
-  "devDependencies": {
-    "chai": "^3.5.0",
-    "eslint": "^2.13.1",
-    "istanbul": "^0.4.5",
-    "jscs": "^3.0.7",
-    "mocha": "^8.0.1"
-  },
-  "scripts": {
-    "test": "mocha --reporter spec",
-    "cover": "node_modules/istanbul/lib/cli.js cover node_modules/mocha/bin/_mocha -- -R spec test/*",
-    "lint": "eslint src/*.js test/*.js"
-  },
+  "homepage": "https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics",
+  "author": "Netflix Telemetry Engineering <netflix-atlas@googlegroups.com>",
+  "type": "commonjs",
+  "main": "src/index.js",
   "files": [
     "src/*",
     "internals/*",
     "*.gyp"
   ],
   "engines": {
-    "node": ">=10.0.0"
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "bindings": "^1.5.0",
+    "globals": "^16.0.0",
+    "nan": "^2.22.2",
+    "nflx-spectator": "^3.0.0",
+    "node-gyp": "^11.1.0"
+  },
+  "devDependencies": {
+    "c8": "^10.1.3",
+    "chai": "^4.3.10",
+    "eslint": "^9.23.0",
+    "mocha": "^11.1.0"
+  },
+  "scripts": {
+    "clean": "rm -rf build coverage",
+    "build": "npm install",
+    "lint": "eslint 'src/**/*.js' 'test/**/*.js'",
+    "test": "mocha 'test/**/*.test.js'",
+    "test-with-coverage": "c8 mocha --reporter min 'test/**/*.test.js'",
+    "check-coverage": "c8 check-coverage --lines 75 mocha 'esm/test/**/*.test.js'"
   }
 }
