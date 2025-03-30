@@ -139,7 +139,7 @@ describe("nodemetrics", (): void => {
     });
     assertFd(1, 1024);
 
-    // test max == null (which shouldn't produce a metric)
+    // test max == null (which should not produce a metric)
     RuntimeMetrics.measureFdActivity(metrics, (): {used: number, max: null} => {
       return {used: 1, max: null};
     });
@@ -151,6 +151,19 @@ describe("nodemetrics", (): void => {
     const writer = r.writer() as MemoryWriter;
     const metrics = new RuntimeMetrics(r);
 
+    let nanos: number = 0;
+    let round: number = 1;
+    const f: NodeJS.HRTime = process.hrtime;
+    Object.defineProperty(process, "hrtime", {
+      get(): () => [number, number] {
+        return (): [number, number] => {
+          nanos += round * 1e6;  // 1ms lag first time, 2ms second time, etc.
+          ++round;
+          return [0, nanos];
+        };
+      }
+    });
+
     function assertLag(expected: number): void {
       assert.equal(writer.get().length, 1);
       const [, id, value] = parse_protocol_line(writer.get()[0]);
@@ -159,19 +172,6 @@ describe("nodemetrics", (): void => {
       assert.closeTo(parseFloat(value), expected, 1e-6);
       writer.clear();
     }
-
-    let nanos: number = 0;
-    let round: number = 1;
-    const f: NodeJS.HRTime = process.hrtime;
-    Object.defineProperty(process, "hrtime", {
-      get(): () => [number, number] {
-        return (): [number, number] => {
-          nanos += 1e9 + round * 1e6;  // 1ms lag first time, 2ms second time, etc.
-          ++round;
-          return [0, nanos];
-        };
-      }
-    });
 
     RuntimeMetrics.measureEventLoopLag(metrics);
     assertLag(0.001);
@@ -182,7 +182,7 @@ describe("nodemetrics", (): void => {
     RuntimeMetrics.measureEventLoopLag(metrics);
     assertLag(0.003);
 
-    Object.defineProperty(process, 'hrtime', f);
+    Object.defineProperty(process, "hrtime", f);
   });
 
   it("should collect eventLoopUtilization metrics when possible", (): void => {
@@ -236,7 +236,7 @@ describe("nodemetrics", (): void => {
     elu.utilization = 1 / 5.0;
 
     RuntimeMetrics.measureEventLoopUtilization(metrics);
-    assertUtil(100 /5.0);
+    assertUtil(100 / 5.0);
 
     Object.defineProperty(process, "hrtime", f);
   });

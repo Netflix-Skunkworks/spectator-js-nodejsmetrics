@@ -1,6 +1,6 @@
 {
   "name": "nflx-spectator-nodejsmetrics",
-  "version": "3.0.0-rc.1",
+  "version": "3.0.0-rc.2",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics",
   "author": "Netflix Telemetry Engineering <netflix-atlas@googlegroups.com>",
@@ -33,7 +33,7 @@
   "dependencies": {
     "bindings": "^1.5.0",
     "nan": "^2.22.2",
-    "nflx-spectator": "^3.0.1",
+    "nflx-spectator": "^3.0.3",
     "node-gyp": "^11.1.0"
   },
   "devDependencies": {
@@ -57,7 +57,7 @@
     "clean": "rm -rf build cjs coverage esm",
     "build-cjs": "tsc --target es5 --module commonjs --outDir cjs; echo '{\"type\": \"commonjs\"}' > cjs/package.json",
     "build-esm": "tsc --target es2022 --module nodenext --outDir esm; echo '{\"type\": \"module\"}' > esm/package.json",
-    "build-internals": "node-gyp configure; node-gyp build",
+    "build-internals": "if [[ ! -f build/Release/spectator_internals.node ]]; then node-gyp configure; node-gyp build; fi",
     "build": "npm run build-internals; npm run build-cjs; npm run build-esm",
     "build-and-test": "npm run build; npm run test",
     "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",

@@ -6,8 +6,8 @@ import {EventLoopUtilityFunction, EventLoopUtilization, performance} from "perf_
 
 const internals = bindings({
   try: [
-    ['module_root', '..', 'build', 'Release', 'spectator_internals.node'],
-    ['module_root', 'build', 'Release', 'spectator_internals.node'],
+    ["module_root", "..", "build", "Release", "spectator_internals.node"],
+    ["module_root", "build", "Release", "spectator_internals.node"],
   ]
 });
 
@@ -76,7 +76,7 @@ function toCamelCase(s: string): string {
 
 function updateV8HeapGauges(r: Registry, extraTags: Tags, heapInfo: IndexedHeapInfo): void {
   for (const key of Object.keys(heapInfo)) {
-    const name: string = 'nodejs.' + toCamelCase(key);
+    const name: string = "nodejs." + toCamelCase(key);
     void r.gauge(name, extraTags).set(heapInfo[key]);
   }
 }
@@ -86,36 +86,12 @@ function updateV8HeapSpaceGauges(r: Registry, extraTags: Tags, heapSpaceInfos: I
     const id: string = toCamelCase(space.space_name);
 
     for (const key of Object.keys(space)) {
-      if (key !== 'space_name') {
-        const name: string = 'nodejs.' + toCamelCase(key);
-        const tags: Tags = Object.assign({'id': id}, extraTags);
+      if (key !== "space_name") {
+        const name: string = "nodejs." + toCamelCase(key);
+        const tags: Tags = Object.assign({"id": id}, extraTags);
         void r.gauge(name, tags).set(space[key] as number);
       }
     }
-  }
-}
-
-/**
- * Translate high resolution time into a number of seconds, for recording a timer value.
- *
- * @param {number|number[]} seconds
- *     Number of seconds, which may be fractional, or an array of two numbers [seconds, nanoseconds],
- *     such as the return value from process.hrtime().
- *
- * @param {number} [nanos]
- *     If seconds is a number, then nanos will be interpreted as a number of nanoseconds.
- *
- * @return {number}
- *     The total number of seconds that have elapsed, which may be fractional. Any negative values
- *     that are calculated will be discarded by the Timer implementation of spectator-js.
- */
-function hrSeconds(seconds: number | number[], nanos?: number): number {
-  if (seconds instanceof Array) {
-    return seconds[0] + (seconds[1] / 1e9);
-  } else if (nanos !== undefined) {
-    return seconds + (nanos / 1e9);
-  } else {
-    return seconds;
   }
 }
 
@@ -305,9 +281,9 @@ export class RuntimeMetrics {
   static measureEventLoopLag(self: RuntimeMetrics): void {
     const now: [number, number] = process.hrtime();
     const nanos: number = now[0] * 1e9 + now[1];
-    const lag: number = nanos - self.lastNanos - 1e9;
+    const lag: number = nanos - self.lastNanos;
     if (lag > 0) {
-      void self.eventLoopLagTimer.record(hrSeconds(0, lag));
+      void self.eventLoopLagTimer.record([0, lag]);
     }
     self.lastNanos = nanos;
   }
@@ -322,7 +298,7 @@ export class RuntimeMetrics {
     setImmediate((): void => {
       const start: [number, number] = process.hrtime();
       setImmediate((): void => {
-        void self.eventLoopTime.record(hrSeconds(process.hrtime(start)));
+        void self.eventLoopTime.record(process.hrtime(start));
       });
     });
   }
