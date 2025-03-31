@@ -281,7 +281,8 @@ export class RuntimeMetrics {
   static measureEventLoopLag(self: RuntimeMetrics): void {
     const now: [number, number] = process.hrtime();
     const nanos: number = now[0] * 1e9 + now[1];
-    const lag: number = nanos - self.lastNanos;
+    // subtract 1 second to account for the schedule period of 1 second
+    const lag: number = nanos - self.lastNanos - 1e9;
     if (lag > 0) {
       void self.eventLoopLagTimer.record([0, lag]);
     }

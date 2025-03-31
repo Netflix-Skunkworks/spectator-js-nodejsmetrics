@@ -157,7 +157,8 @@ describe("nodemetrics", (): void => {
     Object.defineProperty(process, "hrtime", {
       get(): () => [number, number] {
         return (): [number, number] => {
-          nanos += round * 1e6;  // 1ms lag first time, 2ms second time, etc.
+          // add 1 second to account for the schedule period of 1 second
+          nanos += 1e9 + round * 1e6;  // 1ms lag first time, 2ms second time, etc.
           ++round;
           return [0, nanos];
         };
