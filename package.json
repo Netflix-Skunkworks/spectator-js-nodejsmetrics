@@ -1,6 +1,6 @@
 {
   "name": "nflx-spectator-nodejsmetrics",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics",
   "author": "Netflix Telemetry Engineering <netflix-atlas@googlegroups.com>",
@@ -33,7 +33,7 @@
   "dependencies": {
     "bindings": "^1.5.0",
     "nan": "^2.22.2",
-    "nflx-spectator": "^3.0.3",
+    "nflx-spectator": "^3.0.4",
     "node-gyp": "^11.1.0"
   },
   "devDependencies": {
