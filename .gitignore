@@ -1,7 +1,7 @@
 .idea
-coverage/
-node_modules/
-jsconfig.json
-*.tgz
 build/
+cjs/
+coverage/
+esm/
+node_modules/
 package-lock.json
