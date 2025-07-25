@@ -1,6 +1,7 @@
 #include <nan.h>
 #include <chrono>
 #include <sys/resource.h>
+#include <node.h>
 
 using Nan::Set;
 using Nan::New;
@@ -21,6 +22,7 @@ class GCResource : public Nan::AsyncResource {
 };
 
 static GCResource* gcResource;
+static bool isolate_shutting_down;
 
 class DetailedHeapStats {
  public:
@@ -43,6 +45,8 @@ class DetailedHeapStats {
   ~DetailedHeapStats() { delete[] heap_space_stats_; }
 
   bool collect() {
+    if (isolate_shutting_down) return false;
+
     collection_time_ = uv_hrtime();
     Nan::GetHeapStatistics(&heap_stats_);
     auto ok = true;
@@ -107,7 +111,9 @@ class GCInfo {
  public:
   GCInfo(v8::GCType type, DetailedHeapStats* before)
       : type_{type}, before_{*before}, after_{} {
-    after_.collect();
+    if (!isolate_shutting_down) {
+      after_.collect();
+    }
   }
 
   v8::GCType type() const { return type_; }
@@ -150,8 +156,15 @@ static const char* gcTypeToStr(v8::GCType type) {
 }
 
 static void async_callback(uv_async_t* handle) {
-  Nan::HandleScope scope;
   auto* info = static_cast<GCInfo*>(handle->data);
+
+  if (isolate_shutting_down || !gcResource) {
+    delete info;
+    uv_close(reinterpret_cast<uv_handle_t*>(handle), close_callback);
+    return;
+  }
+
+  Nan::HandleScope scope;
   auto elapsed = info->elapsed();
 
   auto res = New<Object>();
@@ -177,6 +190,9 @@ static void async_callback(uv_async_t* handle) {
 
 // callback registered function with GC metrics
 static NAN_GC_CALLBACK(afterGC) {
+  if (isolate_shutting_down || !before_stats) {
+    return;
+  }
   auto* info = new GCInfo(type, before_stats);
   auto async = new uv_async_t;
   async->data = info;
@@ -231,12 +247,31 @@ NAN_METHOD(GetCurMaxFd) {
   info.GetReturnValue().Set(res);
 }
 
-static NAN_GC_CALLBACK(beforeGC) { before_stats->collect(); }
+static NAN_GC_CALLBACK(beforeGC) {
+  if (!isolate_shutting_down) {
+    before_stats->collect();
+  }
+}
+
+static void cleanup(void* arg) {
+  isolate_shutting_down = true;
+  Nan::RemoveGCPrologueCallback(beforeGC);
+  Nan::RemoveGCEpilogueCallback(afterGC);
+  delete before_stats;
+  before_stats = nullptr;
+  delete gcResource;
+  gcResource = nullptr;
+}
 
 NAN_MODULE_INIT(Init) {
   Nan::HandleScope scope;
+  
+  // Initialize global state
+  isolate_shutting_down = false;
   before_stats = new DetailedHeapStats;
+  gcResource = nullptr;
 
+  node::AtExit(node::GetCurrentEnvironment(Nan::GetCurrentContext()), cleanup, nullptr);
   Nan::AddGCPrologueCallback(beforeGC);
   NAN_EXPORT(target, EmitGCEvents);
   NAN_EXPORT(target, GetCurMaxFd);
