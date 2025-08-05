@@ -279,7 +279,7 @@ class RuntimeMetrics {
 
   _cpuHeap() {
     const reg = this.registry;
-    this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 10000, this));
+    this._intervals.push(reg.schedulePeriodically(RuntimeMetrics.measureCpuHeap, 60000, this));
   }
 
   start() {
