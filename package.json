@@ -1,6 +1,6 @@
 {
   "name": "nflx-spectator-nodejsmetrics",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "author": "Matthew Johnson <matthewj@netflix.com>",
   "main": "src/index.js",
   "homepage": "https://github.org/Netflix/spectator-js",
