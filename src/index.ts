@@ -386,7 +386,7 @@ export class RuntimeMetrics {
 
   private initCpuHeap(): void {
     // high-resolution sampling
-    this.scheduleTask(RuntimeMetrics.measureCpuHeap, 10000, this);
+    this.scheduleTask(RuntimeMetrics.measureCpuHeap, 60000, this);
   }
 
   start(): void {
