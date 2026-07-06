@@ -1,16 +1,31 @@
+/// <reference types="mocha" />
 import fs from "node:fs";
+import v8 from "node:v8";
+import {spawnSync} from "node:child_process";
 import {Config, MemoryWriter, parse_protocol_line, Registry} from "nflx-spectator";
 import {assert} from "chai";
 import {RuntimeMetrics} from "../src/index.js"
-import {describe, it} from "node:test";
 
-describe("nodemetrics", (): void => {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve: (value: void | PromiseLike<void>) => void): void => {
+    setTimeout(resolve, ms);
+  });
+}
 
-  function sleep(ms: number): Promise<void> {
-    return new Promise((resolve: (value: void | PromiseLike<void>) => void): void => {
-      setTimeout(resolve, ms);
-    });
-  }
+// Runs a child-process fixture from test/fixtures/<name>.cjs with --expose-gc. The fixture
+// body is prepended with the shared prelude and executed via `-e`, so require('.') resolves
+// against the package root exactly like an inline script would.
+function runChildScript(name: string) {
+  const prelude = fs.readFileSync("test/fixtures/_prelude.cjs", "utf8");
+  const body = fs.readFileSync(`test/fixtures/${name}.cjs`, "utf8");
+  return spawnSync(process.execPath, ["--expose-gc", "-e", `${prelude}\n${body}`], {
+    cwd: process.cwd(),
+    encoding: "utf8"
+  });
+}
+
+// Child-process tests: crash/exit safety and the start/stop/worker lifecycle of the native addon.
+describe("nodemetrics: process lifecycle and crash safety", (): void => {
 
   it("should not prevent node from exiting", (): void => {
     // ensure `start()` with no `stop()` does not prevent mocha from exiting
@@ -18,6 +33,206 @@ describe("nodemetrics", (): void => {
     const metrics = new RuntimeMetrics(r);
     metrics.start();
   });
+
+  it("should not abort when the process exits after loading the addon", (): void => {
+    const result = spawnSync(process.execPath, ["-e", "require('.'); console.log('loaded')"], {
+      cwd: process.cwd(),
+      encoding: "utf8"
+    });
+
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.status, 0, result.stderr);
+    assert.include(result.stdout, "loaded");
+  });
+
+  it("should emit gc metrics after multiple runtime metrics instances register gc callbacks", (): void => {
+    const result = runChildScript("multi-instance");
+
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.status, 0, result.stderr);
+    assert.include(result.stdout, "gc metrics emitted");
+  });
+
+  it("should emit gc metrics from worker thread isolates", (): void => {
+    const result = runChildScript("worker-isolates-main");
+
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.status, 0, result.stderr);
+    assert.include(result.stdout, "gc metrics emitted");
+  });
+
+  it("should stop emitting gc metrics after stop unregisters the native callback", (): void => {
+    const result = runChildScript("stop");
+
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.status, 0, result.stderr);
+    assert.include(result.stdout, "gc metrics stopped");
+  });
+
+  it("should emit gc metrics after start stop start", (): void => {
+    const result = runChildScript("start-stop-start");
+
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.status, 0, result.stderr);
+    assert.include(result.stdout, "gc metrics restarted");
+  });
+});
+
+// Accuracy: native-captured values (child process) and exact transform/wiring (in-process mocks).
+describe("nodemetrics: metric accuracy", (): void => {
+
+  it("should capture accurate native GC heap statistics", (): void => {
+    // cross-checks the raw native EmitGCEvents snapshots against node:v8 invariants
+    const result = runChildScript("gc-accuracy");
+
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.status, 0, result.stderr);
+    assert.include(result.stdout, "GC_ACCURACY_OK");
+  });
+
+  it("should capture accurate file descriptor stats via native GetCurMaxFd", (): void => {
+    // linux: `used` tracks real open fds; macOS/bsd: `used` is 0 (no /proc). max = getrlimit.
+    const result = runChildScript("fd-accuracy");
+
+    assert.equal(result.signal, null, result.stderr);
+    assert.equal(result.status, 0, result.stderr);
+    assert.include(result.stdout, "FD_ACCURACY_OK");
+  });
+
+  it("should report the exact process cpu/heap/v8 values from their sources", (): void => {
+    // Deterministic accuracy check: stub every source measureCpuHeap reads, then assert each
+    // emitted meter equals the exact transform of the stubbed value (correct name, tag, units).
+    const camel = (s: string): string => s.replace(/_([a-z])/g, (g: string): string => g[1].toUpperCase());
+
+    const MEM = {rss: 1001, heapTotal: 2002, heapUsed: 3003, external: 4004, arrayBuffers: 5005};
+    const CPU = [{user: 1000, system: 500}, {user: 5000, system: 2000}];  // deltas: 4000 user, 1500 system
+    const HR: Array<[number, number]> = [[0, 0], [2, 0]];                  // deltaMicros = 2_000_000
+    const HEAP: {[k: string]: number} = {
+      total_heap_size: 10,
+      used_heap_size: 20,
+      heap_size_limit: 30,
+      malloced_memory: 40,
+      number_of_native_contexts: 50
+    };
+    const SPACES = [
+      {space_name: "new_space", space_size: 11, space_used_size: 12, space_available_size: 13, physical_space_size: 14},
+      {space_name: "large_object_space", space_size: 21, space_used_size: 22, space_available_size: 23, physical_space_size: 24}
+    ];
+
+    const r = new Registry(new Config("memory"));
+    const writer = r.writer() as MemoryWriter;
+    const metrics = new RuntimeMetrics(r);
+
+    let cpuIdx = 0;
+    let hrIdx = 0;
+    const saved: Array<{obj: any, key: string, desc: PropertyDescriptor | undefined}> = [];
+    const stub = (obj: any, key: string, value: unknown): void => {
+      saved.push({obj, key, desc: Object.getOwnPropertyDescriptor(obj, key)});
+      Object.defineProperty(obj, key, {value, configurable: true, writable: true});
+    };
+
+    try {
+      stub(process, "memoryUsage", (): unknown => MEM);
+      stub(process, "cpuUsage", (): unknown => CPU[cpuIdx++]);
+      stub(process, "hrtime", (): [number, number] => HR[hrIdx++]);
+      stub(v8, "getHeapStatistics", (): unknown => ({...HEAP}));
+      stub(v8, "getHeapSpaceStatistics", (): unknown => SPACES.map((s) => ({...s})));
+
+      RuntimeMetrics.measureCpuHeap(metrics);  // baseline: sets lastCpuUsage, no cpuUsage emitted yet
+      writer.clear();
+      RuntimeMetrics.measureCpuHeap(metrics);  // emits memory + cpuUsage delta + v8 heap/space gauges
+    } finally {
+      for (const {obj, key, desc} of saved) {
+        if (desc) {
+          Object.defineProperty(obj, key, desc);
+        } else {
+          delete obj[key];
+        }
+      }
+    }
+
+    const byKey = new Map<string, number>();
+    let idlessGauges = 0;
+    for (const line of writer.get()) {
+      const [, id, value] = parse_protocol_line(line);
+      const idTag: string = id.tags()["id"] ?? "";
+      byKey.set(`${id.name()}|${idTag}`, parseFloat(value));
+      assert.equal(id.tags()["nodejs.version"], process.version, `${id.name()} missing version tag`);
+      if (idTag === "") {
+        idlessGauges++;
+      }
+    }
+
+    // process.memoryUsage() pass-throughs, verbatim
+    assert.equal(byKey.get("nodejs.rss|"), 1001);
+    assert.equal(byKey.get("nodejs.heapTotal|"), 2002);
+    assert.equal(byKey.get("nodejs.heapUsed|"), 3003);
+    assert.equal(byKey.get("nodejs.external|"), 4004);
+
+    // process.cpuUsage() delta expressed as a percentage of elapsed wall-clock micros
+    assert.closeTo(byKey.get("nodejs.cpuUsage|user") as number, 4000 / 2_000_000 * 100, 1e-9);   // 0.2
+    assert.closeTo(byKey.get("nodejs.cpuUsage|system") as number, 1500 / 2_000_000 * 100, 1e-9); // 0.075
+
+    // v8.getHeapStatistics(): every key mapped to nodejs.<camelCase(key)> with the exact value
+    for (const key of Object.keys(HEAP)) {
+      assert.equal(byKey.get(`nodejs.${camel(key)}|`), HEAP[key], `heap key ${key}`);
+    }
+    // exactly the 4 memoryUsage gauges + one per heap key, nothing missing or spurious
+    assert.equal(idlessGauges, 4 + Object.keys(HEAP).length);
+
+    // v8.getHeapSpaceStatistics(): per-space gauges tagged id=<camelCase(space_name)>
+    for (const space of SPACES) {
+      const spaceId = camel(space.space_name);
+      for (const key of Object.keys(space)) {
+        if (key === "space_name") {
+          continue;
+        }
+        assert.equal(byKey.get(`nodejs.${camel(key)}|${spaceId}`), (space as {[k: string]: unknown})[key],
+          `${space.space_name}.${key}`);
+      }
+    }
+  });
+
+  it("should report the exact event loop time from process.hrtime", async (): Promise<void> => {
+    const r = new Registry(new Config("memory"));
+    const writer = r.writer() as MemoryWriter;
+    const metrics = new RuntimeMetrics(r);
+
+    // measureEventLoopTime does: start = hrtime(); then record(hrtime(start)). Feed a 5ms diff.
+    const HR: Array<[number, number]> = [[0, 0], [0, 5_000_000]];
+    let hrIdx = 0;
+    const orig = Object.getOwnPropertyDescriptor(process, "hrtime");
+    try {
+      Object.defineProperty(process, "hrtime", {
+        value: (): [number, number] => HR[hrIdx++],
+        configurable: true,
+        writable: true
+      });
+
+      RuntimeMetrics.measureEventLoopTime(metrics);
+      // wait out the two nested setImmediate() hops before the record fires
+      await new Promise<void>((resolve): void => {
+        setImmediate((): void => {
+          setImmediate((): void => resolve());
+        });
+      });
+    } finally {
+      if (orig) {
+        Object.defineProperty(process, "hrtime", orig);
+      }
+    }
+
+    const lines = writer.get();
+    assert.equal(lines.length, 1, lines.join("\n"));
+    const [, id, value] = parse_protocol_line(lines[0]);
+    assert.equal(id.name(), "nodejs.eventLoop");
+    assert.equal(id.tags()["nodejs.version"], process.version);
+    assert.closeTo(parseFloat(value), 0.005, 1e-9);  // 5ms
+  });
+});
+
+// The original per-measure-method transform tests plus general start()/started behavior.
+describe("nodemetrics: metric collection and behavior", (): void => {
 
   it("should generate a few meters", async (): Promise<void> => {
     // ensure `start()` actually starts the collection

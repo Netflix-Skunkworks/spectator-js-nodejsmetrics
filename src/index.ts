@@ -19,7 +19,8 @@ interface IndexedHeapSpaceInfo extends HeapSpaceInfo {
   [key: string]: number | string;
 }
 
-type EmitGcFunction = (arg0: (event: GcEvent) => void) => void;
+type GcCallback = (event: GcEvent) => void;
+type EmitGcFunction = (arg0: GcCallback) => void;
 
 type HeapSpaceInfoCamelCase = {
   spaceName: string;
@@ -131,6 +132,7 @@ export class RuntimeMetrics {
   private lastCpuUsageTime?: [number, number];
   private lastNanos: number = 0;
   private liveDataSizeCache?: number;
+  private gcCallback?: GcCallback;
 
   constructor(r: Registry) {
     if (typeof process.cpuUsage !== "function" || typeof v8.getHeapSpaceStatistics !== "function") {
@@ -173,7 +175,7 @@ export class RuntimeMetrics {
     let prevMapSize: number;
     let prevLargeSize: number;
 
-    emitGcFunction((event: GcEvent): void => {
+    const gcCallback = (event: GcEvent): void => {
       // max data size
       void self.maxDataSize.set(event.after.heapSizeLimit);
       void self.registry.timer("nodejs.gc.pause", self.withVersion({"id": event.type})).record(event.elapsed);
@@ -262,7 +264,10 @@ export class RuntimeMetrics {
       if (totalAllocationRate) {
         void self.allocationRate.increment(totalAllocationRate);
       }
-    });
+    };
+
+    this.gcCallback = gcCallback;
+    emitGcFunction(gcCallback);
   }
 
   static measureFdActivity(self: RuntimeMetrics, fdFunction: () => any): void {
@@ -408,6 +413,13 @@ export class RuntimeMetrics {
     for (const interval of this.intervals) {
       clearInterval(interval);
     }
+    this.intervals = [];
+
+    if (this.gcCallback) {
+      internals.DisableGCEvents(this.gcCallback);
+      this.gcCallback = undefined;
+    }
+
     this.started = false;
   }
 

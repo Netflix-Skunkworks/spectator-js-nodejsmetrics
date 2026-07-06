@@ -57,7 +57,7 @@
     "clean": "rm -rf build cjs coverage esm",
     "build-cjs": "tsc --target es5 --module commonjs --outDir cjs; echo '{\"type\": \"commonjs\"}' > cjs/package.json",
     "build-esm": "tsc --target es2022 --module nodenext --outDir esm; echo '{\"type\": \"module\"}' > esm/package.json",
-    "build-internals": "if [[ ! -f build/Release/spectator_internals.node ]]; then node-gyp configure; node-gyp build; fi",
+    "build-internals": "node-gyp rebuild",
     "build": "npm run build-internals; npm run build-cjs; npm run build-esm",
     "build-and-test": "npm run build; npm run test",
     "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",

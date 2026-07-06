@@ -1,12 +1,9 @@
 {
   'variables': {
-    'osx_cpp_version': "14",
+    'cpp_version': "17",
     'conditions': [
-        [ 'OS=="mac" and node_module_version >= 115', {
-            'osx_cpp_version': "17"
-        }],
-        [ 'OS=="mac" and node_module_version >= 130', {
-            'osx_cpp_version': "20"
+        [ 'node_module_version >= 130', {
+            'cpp_version': "20"
         }]
     ]
   },
@@ -14,24 +11,26 @@
     {
       'target_name': 'spectator_internals',
       'dependencies': [],
-      'sources': ["internals/functions.cc"],
+      'sources': [
+        "internals/functions.cc",
+        "internals/runtime_metrics_native.cc"
+      ],
       'include_dirs' : [
         "<!(node -e \"require('nan')\")"
       ],
       'conditions': [
         [ 'OS=="mac"', {
           'xcode_settings': {
-            'OTHER_CPLUSPLUSFLAGS' : ['-stdlib=libc++', '-v', '-std=c++<(osx_cpp_version)', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ],
+            'OTHER_CPLUSPLUSFLAGS' : ['-stdlib=libc++', '-v', '-std=c++<(cpp_version)', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ],
             'OTHER_LDFLAGS': ['-stdlib=libc++'],
             'MACOSX_DEPLOYMENT_TARGET': '10.12',
             'GCC_ENABLE_CPP_EXCEPTIONS': 'NO'
           }
         }],
         ['OS=="linux"', {
-          'cflags': ['-std=c++14', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ]
+          'cflags_cc': ['-std=c++<(cpp_version)', '-Wall', '-Wextra', '-Wno-unused-parameter', '-g', '-O2' ]
         }]
       ]
     }
   ]
 }
-
