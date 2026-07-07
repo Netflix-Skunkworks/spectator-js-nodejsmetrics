@@ -13,7 +13,9 @@
       'dependencies': [],
       'sources': [
         "internals/functions.cc",
-        "internals/runtime_metrics_native.cc"
+        "internals/runtime_metrics_native.cc",
+        "internals/fd_stats.cc",
+        "internals/heap_snapshot.cc"
       ],
       'include_dirs' : [
         "<!(node -e \"require('nan')\")"

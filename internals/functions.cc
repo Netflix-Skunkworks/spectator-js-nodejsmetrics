@@ -1,6 +1,7 @@
 #include <nan.h>
 #include <node.h>
 
+#include "fd_stats.h"
 #include "runtime_metrics_native.h"
 
 using Nan::New;
@@ -68,7 +69,7 @@ NAN_METHOD(GetCurMaxFd)
 }
 
 NAN_MODULE_INIT(Init)
-{
+{    
     Nan::HandleScope scope;
 
     auto* isolate = target->GetIsolate();

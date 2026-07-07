@@ -2,6 +2,8 @@
 import fs from "node:fs";
 import v8 from "node:v8";
 import {spawnSync} from "node:child_process";
+import {createRequire} from "node:module";
+import path from "node:path";
 import {Config, MemoryWriter, parse_protocol_line, Registry} from "nflx-spectator";
 import {assert} from "chai";
 import {RuntimeMetrics} from "../src/index.js"
@@ -23,6 +25,13 @@ function runChildScript(name: string) {
     encoding: "utf8"
   });
 }
+
+// The raw native addon (not re-exported by the JS index) loaded straight from the built binary,
+// so tests can call its functions directly. cwd is the package root under mocha.
+type FdStats = {used: number, max: number | null};
+const internals = createRequire(import.meta.url)(
+  path.resolve("build/Release/spectator_internals.node")
+) as {GetCurMaxFd: () => FdStats};
 
 // Child-process tests: crash/exit safety and the start/stop/worker lifecycle of the native addon.
 describe("nodemetrics: process lifecycle and crash safety", (): void => {
@@ -91,12 +100,36 @@ describe("nodemetrics: metric accuracy", (): void => {
   });
 
   it("should capture accurate file descriptor stats via native GetCurMaxFd", (): void => {
-    // linux: `used` tracks real open fds; macOS/bsd: `used` is 0 (no /proc). max = getrlimit.
-    const result = runChildScript("fd-accuracy");
+    // used: linux tracks real open fds via /proc; macOS/bsd has no /proc, so it is always 0.
+    // max: getrlimit(RLIMIT_NOFILE) -> null (unlimited) or a positive integer, on both platforms.
+    const shapeOk = (s: FdStats): boolean =>
+      Number.isFinite(s.used) && s.used >= 0 &&
+      (s.max === null || (Number.isInteger(s.max) && s.max > 0));
 
-    assert.equal(result.signal, null, result.stderr);
-    assert.equal(result.status, 0, result.stderr);
-    assert.include(result.stdout, "FD_ACCURACY_OK");
+    const before = internals.GetCurMaxFd();
+    assert.isTrue(shapeOk(before), `bad shape: ${JSON.stringify(before)}`);
+
+    const fds: number[] = [];
+    try {
+      for (let i = 0; i < 16; ++i) {
+        fds.push(fs.openSync(process.execPath, "r"));  // open a file that is guaranteed to exist
+      }
+      const after = internals.GetCurMaxFd();
+      assert.isTrue(shapeOk(after), `bad shape: ${JSON.stringify(after)}`);
+
+      if (process.platform === "linux") {
+        // counts the 16 we opened (plus the transient opendir fd), so it rises by at least 16
+        assert.isAtLeast(after.used - before.used, 16, "used should rise by >= 16 after opening 16 files");
+      } else {
+        assert.equal(after.used, 0, "used should be 0 on platforms without /proc/self/fd");
+      }
+      // max is a fixed process limit; it must not change between samples
+      assert.equal(after.max, before.max);
+    } finally {
+      for (const fd of fds) {
+        fs.closeSync(fd);
+      }
+    }
   });
 
   it("should report the exact process cpu/heap/v8 values from their sources", (): void => {
@@ -104,6 +137,9 @@ describe("nodemetrics: metric accuracy", (): void => {
     // emitted meter equals the exact transform of the stubbed value (correct name, tag, units).
     const camel = (s: string): string => s.replace(/_([a-z])/g, (g: string): string => g[1].toUpperCase());
 
+    // stubbed values to be returned by process.memoryUsage(), process.cpuUsage(), process.hrtime(),
+    // v8.getHeapStatistics(), and v8.getHeapSpaceStatistics(). The deltas are chosen to be
+    // non-zero and easy to compute, so the emitted metrics can be asserted against them.
     const MEM = {rss: 1001, heapTotal: 2002, heapUsed: 3003, external: 4004, arrayBuffers: 5005};
     const CPU = [{user: 1000, system: 500}, {user: 5000, system: 2000}];  // deltas: 4000 user, 1500 system
     const HR: Array<[number, number]> = [[0, 0], [2, 0]];                  // deltaMicros = 2_000_000
@@ -119,10 +155,19 @@ describe("nodemetrics: metric accuracy", (): void => {
       {space_name: "large_object_space", space_size: 21, space_used_size: 22, space_available_size: 23, physical_space_size: 24}
     ];
 
+    // The Registry, MemoryWriter, and RuntimeMetrics under test. The MemoryWriter is used to capture
+    // the emitted metrics so they can be asserted against the stubbed values above.
     const r = new Registry(new Config("memory"));
     const writer = r.writer() as MemoryWriter;
     const metrics = new RuntimeMetrics(r);
 
+    // The stub() helper replaces a property on an object with a getter that returns a fixed value, and saves the original property 
+    // descriptor so it can be restored later. The stubbed properties are:
+    // - process.memoryUsage
+    // - process.cpuUsage
+    // - process.hrtime
+    // - v8.getHeapStatistics
+    // - v8.getHeapSpaceStatistics
     let cpuIdx = 0;
     let hrIdx = 0;
     const saved: Array<{obj: any, key: string, desc: PropertyDescriptor | undefined}> = [];
@@ -131,6 +176,7 @@ describe("nodemetrics: metric accuracy", (): void => {
       Object.defineProperty(obj, key, {value, configurable: true, writable: true});
     };
 
+    // The try/finally block ensures that the original properties are restored after the test, even if an assertion fails. 
     try {
       stub(process, "memoryUsage", (): unknown => MEM);
       stub(process, "cpuUsage", (): unknown => CPU[cpuIdx++]);
@@ -151,6 +197,8 @@ describe("nodemetrics: metric accuracy", (): void => {
       }
     }
 
+    // The emitted metrics are captured in the MemoryWriter. The test iterates over each line, parses it, and checks that the values match the expected values based on the stubbed sources. 
+    // It also counts how many gauges were emitted without an "id" tag, which should match the expected number of memoryUsage and heap space gauges.
     const byKey = new Map<string, number>();
     let idlessGauges = 0;
     for (const line of writer.get()) {

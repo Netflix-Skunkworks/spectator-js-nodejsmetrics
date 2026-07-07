@@ -4,7 +4,6 @@
 #include <v8.h>
 
 #include <memory>
-#include <sys/resource.h>
 #include <unordered_set>
 #include <vector>
 
@@ -15,13 +14,6 @@ class GCResource;
 class GCEvent;
 class HeapSnapshot;
 struct PendingGCEvent;
-
-struct FileDescriptorStats
-{
-    size_t used;
-    rlim_t max;
-    bool max_is_unlimited;
-};
 
 class AddonState : public std::enable_shared_from_this<AddonState>
 {
@@ -63,6 +55,5 @@ class AddonState : public std::enable_shared_from_this<AddonState>
 
 std::shared_ptr<AddonState> currentAddonState(v8::Isolate* isolate);
 std::shared_ptr<AddonState> initializeAddonState(v8::Isolate* isolate, uv_loop_t* event_loop);
-FileDescriptorStats collectFileDescriptorStats();
 
 }  // namespace spectator_nodejsmetrics

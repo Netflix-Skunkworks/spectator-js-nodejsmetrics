@@ -3,11 +3,11 @@
 #include <nan.h>
 #include <node.h>
 
-#include <cstring>
-#include <dirent.h>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+
+#include "heap_snapshot.h"
 
 namespace spectator_nodejsmetrics
 {
@@ -64,29 +64,6 @@ void cleanupAddonState(void* data)
     }
 }
 
-size_t getDirCount(const char* dir)
-{
-    auto fd = opendir(dir);
-    if (fd == nullptr)
-    {
-        return 0;
-    }
-
-    size_t count = 0;
-    struct dirent* dp;
-    while ((dp = readdir(fd)) != nullptr)
-    {
-        if (dp->d_name[0] == '.')
-        {
-            continue;
-        }
-        ++count;
-    }
-
-    closedir(fd);
-    return count;
-}
-
 }  // namespace
 
 class GCResource : public Nan::AsyncResource
@@ -115,142 +92,6 @@ class GCResource : public Nan::AsyncResource
 
    private:
     Nan::Persistent<v8::Function> callback_;
-};
-
-class HeapSnapshot
-{
-   public:
-    explicit HeapSnapshot(v8::Isolate* isolate)
-        : isolate_(isolate),
-          heap_space_stats_(isolate == nullptr ? 0 : isolate->NumberOfHeapSpaces()),
-          collection_time_(0)
-    {
-        clear();
-    }
-
-    bool collect()
-    {
-        if (isolate_ == nullptr)
-        {
-            return false;
-        }
-
-        clear();
-        collection_time_ = uv_hrtime();
-        isolate_->GetHeapStatistics(&heap_stats_);
-
-        bool ok = true;
-        for (size_t i = 0; i < heap_space_stats_.size(); ++i)
-        {
-            if (!isolate_->GetHeapSpaceStatistics(&heap_space_stats_[i], i))
-            {
-                ok = false;
-            }
-        }
-        return ok;
-    }
-
-    uint64_t collectionTime() const { return collection_time_; }
-
-    void serialize(v8::Local<v8::Object> obj)
-    {
-        serializeHeapStats(obj);
-
-        auto heap_spaces = Nan::New<v8::Array>(heap_space_stats_.size());
-        Nan::Set(obj, Nan::New("heapSpaceStats").ToLocalChecked(), heap_spaces);
-
-        for (size_t i = 0; i < heap_space_stats_.size(); ++i)
-        {
-            auto heap_space = Nan::New<v8::Object>();
-            serializeHeapSpace(i, heap_space);
-            Nan::Set(heap_spaces, static_cast<uint32_t>(i), heap_space);
-        }
-    }
-
-   private:
-    void clear()
-    {
-        std::memset(&heap_stats_, 0, sizeof(heap_stats_));
-        if (!heap_space_stats_.empty())
-        {
-            std::memset(heap_space_stats_.data(), 0, heap_space_stats_.size() * sizeof(v8::HeapSpaceStatistics));
-        }
-    }
-
-    void serializeHeapSpace(size_t space_idx, v8::Local<v8::Object> obj)
-    {
-        v8::HeapSpaceStatistics& space = heap_space_stats_[space_idx];
-        Nan::Set(obj, Nan::New("spaceName").ToLocalChecked(), Nan::New(space.space_name()).ToLocalChecked());
-        Nan::Set(obj, Nan::New("spaceSize").ToLocalChecked(), Nan::New<v8::Number>(space.space_size()));
-        Nan::Set(obj, Nan::New("spaceUsedSize").ToLocalChecked(), Nan::New<v8::Number>(space.space_used_size()));
-        Nan::Set(obj, Nan::New("spaceAvailableSize").ToLocalChecked(),
-                 Nan::New<v8::Number>(space.space_available_size()));
-        Nan::Set(obj, Nan::New("physicalSpaceSize").ToLocalChecked(),
-                 Nan::New<v8::Number>(space.physical_space_size()));
-    }
-
-    void serializeHeapStats(v8::Local<v8::Object> obj)
-    {
-        Nan::Set(obj, Nan::New("totalHeapSize").ToLocalChecked(), Nan::New<v8::Number>(heap_stats_.total_heap_size()));
-        Nan::Set(obj, Nan::New("totalHeapSizeExecutable").ToLocalChecked(),
-                 Nan::New<v8::Number>(heap_stats_.total_heap_size_executable()));
-        Nan::Set(obj, Nan::New("totalPhysicalSize").ToLocalChecked(),
-                 Nan::New<v8::Number>(heap_stats_.total_physical_size()));
-        Nan::Set(obj, Nan::New("totalAvailableSize").ToLocalChecked(),
-                 Nan::New<v8::Number>(heap_stats_.total_available_size()));
-        Nan::Set(obj, Nan::New("usedHeapSize").ToLocalChecked(), Nan::New<v8::Number>(heap_stats_.used_heap_size()));
-        Nan::Set(obj, Nan::New("heapSizeLimit").ToLocalChecked(), Nan::New<v8::Number>(heap_stats_.heap_size_limit()));
-#if NODE_MODULE_VERSION >= NODE_7_0_MODULE_VERSION
-        Nan::Set(obj, Nan::New("mallocedMemory").ToLocalChecked(), Nan::New<v8::Number>(heap_stats_.malloced_memory()));
-        Nan::Set(obj, Nan::New("peakMallocedMemory").ToLocalChecked(),
-                 Nan::New<v8::Number>(heap_stats_.peak_malloced_memory()));
-#endif
-#if NODE_MODULE_VERSION >= NODE_10_0_MODULE_VERSION
-        Nan::Set(obj, Nan::New("numNativeContexts").ToLocalChecked(),
-                 Nan::New<v8::Number>(heap_stats_.number_of_native_contexts()));
-        Nan::Set(obj, Nan::New("numDetachedContexts").ToLocalChecked(),
-                 Nan::New<v8::Number>(heap_stats_.number_of_detached_contexts()));
-#endif
-    }
-
-    v8::Isolate* isolate_;
-    v8::HeapStatistics heap_stats_;
-    std::vector<v8::HeapSpaceStatistics> heap_space_stats_;
-    uint64_t collection_time_;
-};
-
-class GCEvent
-{
-   public:
-    GCEvent(v8::Isolate* isolate, v8::GCType type, const HeapSnapshot& before)
-        : type_(type), before_(before), after_(isolate)
-    {
-        after_.collect();
-    }
-
-    v8::GCType type() const { return type_; }
-
-    double elapsed() const
-    {
-        if (after_.collectionTime() < before_.collectionTime())
-        {
-            return 0;
-        }
-
-        const auto elapsed_nanos = after_.collectionTime() - before_.collectionTime();
-        return elapsed_nanos / 1e9;
-    }
-
-    void serialize(v8::Local<v8::Object> before, v8::Local<v8::Object> after)
-    {
-        before_.serialize(before);
-        after_.serialize(after);
-    }
-
-   private:
-    v8::GCType type_;
-    HeapSnapshot before_;
-    HeapSnapshot after_;
 };
 
 struct PendingGCEvent
@@ -523,18 +364,6 @@ std::shared_ptr<AddonState> initializeAddonState(v8::Isolate* isolate, uv_loop_t
     }
 
     return state;
-}
-
-FileDescriptorStats collectFileDescriptorStats()
-{
-    struct rlimit rl;
-    getrlimit(RLIMIT_NOFILE, &rl);
-
-    return FileDescriptorStats{
-        getDirCount("/proc/self/fd"),
-        rl.rlim_cur,
-        rl.rlim_cur == RLIM_INFINITY,
-    };
 }
 
 }  // namespace spectator_nodejsmetrics
