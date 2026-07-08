@@ -50,16 +50,18 @@ const GC_TYPE_NAMES: Readonly<Record<string, string>> = {
 };
 
 function toGcEvent(record: ProfilerRecord): GcEvent {
-  const spaces = (list: ProfilerSpace[]): GcHeapSpace[] =>
-    list.map((s: ProfilerSpace): GcHeapSpace => ({spaceName: s.spaceName, spaceUsedSize: s.spaceUsedSize}));
-
+  // Reference the profiler's space arrays directly rather than copying them. ProfilerSpace is
+  // structurally a GcHeapSpace (the profiler objects just carry extra fields RuntimeMetrics
+  // ignores), and the profiler result is discarded right after this drain, so there is nothing
+  // to retain. This avoids allocating ~2*N throwaway objects per GC event -- churn that, in a GC
+  // metrics collector, would itself provoke more collections.
   return {
     type: GC_TYPE_NAMES[record.gcType] ?? "unknown",
     elapsed: record.cost / 1e6,  // microseconds -> seconds
-    before: {heapSpaceStats: spaces(record.beforeGC.heapSpaceStatistics)},
+    before: {heapSpaceStats: record.beforeGC.heapSpaceStatistics},
     after: {
       heapSizeLimit: record.afterGC.heapStatistics.heapSizeLimit,
-      heapSpaceStats: spaces(record.afterGC.heapSpaceStatistics),
+      heapSpaceStats: record.afterGC.heapSpaceStatistics,
     },
   };
 }
@@ -151,10 +153,11 @@ export class GcEventSource {
 
   private deliver(result: ProfilerResult): void {
     const onEvent = this.onEvent;
-    if (!onEvent) {
+    const stats = result.statistics;
+    if (!onEvent || !stats) {
       return;
     }
-    for (const record of result.statistics ?? []) {
+    for (const record of stats) {
       onEvent(toGcEvent(record));
     }
   }
