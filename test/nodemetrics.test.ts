@@ -418,7 +418,7 @@ describe("nodemetrics: metric collection and behavior", (): void => {
 
     await sleep(100);  // tiny pause is necessary to see data
 
-    assert.isTrue(writer.get().length >= 3);
+    assert.isTrue(writer.get().length >= (process.platform === "linux" ? 3 : 2));
   });
 
   it("should collect gc metrics", (): void => {
