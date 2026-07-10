@@ -1,6 +1,6 @@
 {
   "name": "nflx-spectator-nodejsmetrics",
-  "version": "3.0.5",
+  "version": "3.1.0",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Netflix-Skunkworks/spectator-js-nodejsmetrics",
   "author": "Netflix Telemetry Engineering <netflix-atlas@googlegroups.com>",
@@ -20,26 +20,25 @@
     }
   },
   "files": [
-    "binding.gyp",
     "cjs/package.json",
     "cjs/src/**/*",
     "esm/package.json",
-    "esm/src/**/*",
-    "internals/functions.cc"
+    "esm/src/**/*"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.15.0"
+  },
+  "c8": {
+    "include": [
+      "esm/src/**"
+    ]
   },
   "dependencies": {
-    "bindings": "^1.5.0",
-    "nan": "^2.22.2",
-    "nflx-spectator": "^3.0.4",
-    "node-gyp": "^11.1.0"
+    "nflx-spectator": "^3.0.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.0",
     "@eslint/js": "^9.9.1",
-    "@types/bindings": "^1.5.5",
     "@types/chai": "^4.3.20",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.13.10",
@@ -57,8 +56,8 @@
     "clean": "rm -rf build cjs coverage esm",
     "build-cjs": "tsc --target es5 --module commonjs --outDir cjs; echo '{\"type\": \"commonjs\"}' > cjs/package.json",
     "build-esm": "tsc --target es2022 --module nodenext --outDir esm; echo '{\"type\": \"module\"}' > esm/package.json",
-    "build-internals": "if [[ ! -f build/Release/spectator_internals.node ]]; then node-gyp configure; node-gyp build; fi",
-    "build": "npm run build-internals; npm run build-cjs; npm run build-esm",
+    "build": "npm run build-cjs && npm run build-esm",
+    "example": "npm run build && node examples/verify-accuracy.mjs",
     "build-and-test": "npm run build; npm run test",
     "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
     "test": "mocha 'esm/test/**/*.test.js'",
