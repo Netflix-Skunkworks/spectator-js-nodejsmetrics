@@ -36,14 +36,6 @@ jobs:
         run: npm run lint
 
       - name: Publish
-        # Prerelease versions (e.g. 3.1.0-rc.1, which contain a "-") publish under the "next"
-        # dist-tag so they do not overwrite "latest"; only stable versions become "latest".
-        run: |
-          VERSION="$(node -p "require('./package.json').version")"
-          if [[ "$VERSION" == *-* ]]; then
-            npm publish --tag next
-          else
-            npm publish
-          fi
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
