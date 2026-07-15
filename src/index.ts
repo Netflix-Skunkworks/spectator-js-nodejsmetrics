@@ -1,15 +1,9 @@
 import v8 from "node:v8";
-import bindings from "bindings";
 import {Counter, Gauge, Registry, Tags, Timer} from "nflx-spectator";
 import {HeapInfo, HeapSpaceInfo} from "v8";
 import {EventLoopUtilityFunction, EventLoopUtilization, performance} from "perf_hooks";
-
-const internals = bindings({
-  try: [
-    ["module_root", "..", "build", "Release", "spectator_internals.node"],
-    ["module_root", "build", "Release", "spectator_internals.node"],
-  ]
-});
+import {GcEvent, GcHeapSpace, GcEventSource} from "./gc.js";
+import {collectFdStats} from "./fd.js";
 
 interface IndexedHeapInfo extends HeapInfo {
   [key: string]: number;
@@ -19,37 +13,15 @@ interface IndexedHeapSpaceInfo extends HeapSpaceInfo {
   [key: string]: number | string;
 }
 
-type EmitGcFunction = (arg0: (event: GcEvent) => void) => void;
-
-type HeapSpaceInfoCamelCase = {
-  spaceName: string;
-  spaceSize: number;
-  spaceUsedSize: number;
-  spaceAvailableSize: number;
-  physicalSpaceSize: number;
-};
-
-type GcEvent = {
-  type: string;
-  elapsed: number;
-  before: {
-    heapSpaceStats: HeapSpaceInfoCamelCase[];
-  };
-  after: {
-    heapSizeLimit: number;
-    heapSpaceStats: HeapSpaceInfoCamelCase[];
-  };
-};
-
 type Space = {
-  beforeNew?: HeapSpaceInfoCamelCase,
-  afterNew?: HeapSpaceInfoCamelCase,
-  beforeOld?: HeapSpaceInfoCamelCase,
-  afterOld?: HeapSpaceInfoCamelCase,
-  beforeMap?: HeapSpaceInfoCamelCase,
-  afterMap?: HeapSpaceInfoCamelCase,
-  beforeLarge?: HeapSpaceInfoCamelCase,
-  afterLarge?: HeapSpaceInfoCamelCase,
+  beforeNew?: GcHeapSpace,
+  afterNew?: GcHeapSpace,
+  beforeOld?: GcHeapSpace,
+  afterOld?: GcHeapSpace,
+  beforeMap?: GcHeapSpace,
+  afterMap?: GcHeapSpace,
+  beforeLarge?: GcHeapSpace,
+  afterLarge?: GcHeapSpace,
 };
 
 function deltaMicros(end: [number, number], start: [number, number]): number {
@@ -100,6 +72,7 @@ export class RuntimeMetrics {
 
   private registry: Registry;
   private intervals: NodeJS.Timeout[] = [];
+  private gcSource: GcEventSource = new GcEventSource();
 
   // metrics
   private external: Gauge;
@@ -131,6 +104,9 @@ export class RuntimeMetrics {
   private lastCpuUsageTime?: [number, number];
   private lastNanos: number = 0;
   private liveDataSizeCache?: number;
+  // last-seen used sizes, carried across GC events for the allocation-rate deltas
+  private prevMapSize?: number;
+  private prevLargeSize?: number;
 
   constructor(r: Registry) {
     if (typeof process.cpuUsage !== "function" || typeof v8.getHeapSpaceStatistics !== "function") {
@@ -165,104 +141,89 @@ export class RuntimeMetrics {
     return tags;
   }
 
-  measureGcEvents(emitGcFunction: EmitGcFunction): void {
-    // this function becomes a callback in EmitGCEvents, so save a reference to the current object
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    const self: RuntimeMetrics = this;
+  // Wires GC measurement to the GcEventSource. Leaves GC metrics uncollected (with a log line)
+  // if v8.GCProfiler is unavailable (Node < 18.15).
+  private startGcMetrics(): void {
+    const started: boolean = this.gcSource.start(
+      (event: GcEvent): void => this.recordGcEvent(event),
+      (error: unknown): void => this.registry.logger.error(`GC metrics collection disabled after an error: ${error}`),
+    );
+    if (!started) {
+      this.registry.logger.info(`Unable to measure GC metrics. Requires Node.js v18.15.0 or newer: ${process.version}`);
+    }
+  }
 
-    let prevMapSize: number;
-    let prevLargeSize: number;
+  // Translates one GC event into spectator meters. Invoked once per GC by the GcEventSource.
+  recordGcEvent(event: GcEvent): void {
+    void this.maxDataSize.set(event.after.heapSizeLimit);
+    void this.registry.timer("nodejs.gc.pause", this.withVersion({"id": event.type})).record(event.elapsed);
 
-    emitGcFunction((event: GcEvent): void => {
-      // max data size
-      void self.maxDataSize.set(event.after.heapSizeLimit);
-      void self.registry.timer("nodejs.gc.pause", self.withVersion({"id": event.type})).record(event.elapsed);
+    const space: Space = {};
+    for (let idx: number = 0; idx < event.before.heapSpaceStats.length; ++idx) {
+      const name: string = event.before.heapSpaceStats[idx].spaceName;
+      if (name === "new_space") {
+        space.beforeNew = event.before.heapSpaceStats[idx];
+        space.afterNew = event.after.heapSpaceStats[idx];
+      } else if (name === "old_space") {
+        space.beforeOld = event.before.heapSpaceStats[idx];
+        space.afterOld = event.after.heapSpaceStats[idx];
+      } else if (name === "map_space") {
+        space.beforeMap = event.before.heapSpaceStats[idx];
+        space.afterMap = event.after.heapSpaceStats[idx];
+      } else if (name === "large_object_space") {
+        space.beforeLarge = event.before.heapSpaceStats[idx];
+        space.afterLarge = event.after.heapSpaceStats[idx];
+      }
+    }
 
-      const space: Space = {};
+    if (space.beforeOld && space.afterOld) {
+      const oldBefore: number = space.beforeOld.spaceUsedSize;
+      const oldAfter: number = space.afterOld.spaceUsedSize;
 
-      for (let idx: number = 0; idx < event.before.heapSpaceStats.length; ++idx) {
-        const name: string = event.before.heapSpaceStats[idx].spaceName;
-
-        if (name === "new_space") {
-          space.beforeNew = event.before.heapSpaceStats[idx];
-          space.afterNew = event.after.heapSpaceStats[idx];
-        } else if (name === "old_space") {
-          space.beforeOld = event.before.heapSpaceStats[idx];
-          space.afterOld = event.after.heapSpaceStats[idx];
-        } else if (name === "map_space") {
-          space.beforeMap = event.before.heapSpaceStats[idx];
-          space.afterMap = event.after.heapSpaceStats[idx];
-        } else if (name === "large_object_space") {
-          space.beforeLarge = event.before.heapSpaceStats[idx];
-          space.afterLarge = event.after.heapSpaceStats[idx];
-        }
+      if (oldAfter > oldBefore) {
+        // data promoted to old_space
+        void this.promotionRate.increment(oldAfter - oldBefore);
       }
 
-      if (space.beforeOld && space.afterOld) {
-        const oldBefore: number = space.beforeOld.spaceUsedSize;
-        const oldAfter: number = space.afterOld.spaceUsedSize;
-
-        if (oldAfter > oldBefore) {
-          // data promoted to old_space
-          void self.promotionRate.increment(oldAfter - oldBefore);
-        }
-
-        if (oldAfter < oldBefore || event.type === "markSweepCompact") {
-          self.liveDataSizeCache = oldAfter;
-          void self.liveDataSize.set(oldAfter);
-        } else {
-          // refresh the value, to prevent expiration of the gauge, if no GC events occur
-          if (self.liveDataSizeCache !== undefined) {
-            void self.liveDataSize.set(self.liveDataSizeCache);
-          }
-        }
+      if (oldAfter < oldBefore || event.type === "markSweepCompact") {
+        this.liveDataSizeCache = oldAfter;
+        void this.liveDataSize.set(oldAfter);
+      } else if (this.liveDataSizeCache !== undefined) {
+        // refresh the gauge so it does not expire when no collecting GC has occurred
+        void this.liveDataSize.set(this.liveDataSizeCache);
       }
+    }
 
-      let totalAllocationRate;
+    let totalAllocationRate: number = 0;
 
-      if (space.beforeNew && space.afterNew) {
-        const youngBefore: number = space.beforeNew.spaceUsedSize;
-        const youngAfter: number = space.afterNew.spaceUsedSize;
-        if (youngBefore > youngAfter) {
-          // garbage generated and collected
-          totalAllocationRate = youngBefore - youngAfter;
-        }
+    if (space.beforeNew && space.afterNew) {
+      const youngBefore: number = space.beforeNew.spaceUsedSize;
+      const youngAfter: number = space.afterNew.spaceUsedSize;
+      if (youngBefore > youngAfter) {
+        // garbage generated in and collected from new_space
+        totalAllocationRate += youngBefore - youngAfter;
       }
+    }
 
-      if (space.beforeMap && space.afterMap) {
-        // compute the delta from our last GC event to now
-        const mapBefore: number = space.beforeMap.spaceUsedSize;
-
-        if (prevMapSize && mapBefore > prevMapSize) {
-          if (totalAllocationRate) {
-            totalAllocationRate += mapBefore - prevMapSize;
-          } else {
-            totalAllocationRate = mapBefore - prevMapSize;
-          }
-        }
-
-        prevMapSize = space.afterMap.spaceUsedSize;
+    if (space.beforeMap && space.afterMap) {
+      // add whatever was allocated in map_space since the previous GC event
+      if (this.prevMapSize && space.beforeMap.spaceUsedSize > this.prevMapSize) {
+        totalAllocationRate += space.beforeMap.spaceUsedSize - this.prevMapSize;
       }
+      this.prevMapSize = space.afterMap.spaceUsedSize;
+    }
 
-      if (space.beforeLarge && space.afterLarge) {
-        // compute the delta from our last GC event to now
-        const largeBefore: number = space.beforeLarge.spaceUsedSize;
-
-        if (prevLargeSize && largeBefore > prevLargeSize) {
-          if (totalAllocationRate) {
-            totalAllocationRate += largeBefore - prevLargeSize;
-          } else {
-            totalAllocationRate = largeBefore - prevLargeSize;
-          }
-        }
-
-        prevLargeSize = space.afterLarge.spaceUsedSize;
+    if (space.beforeLarge && space.afterLarge) {
+      // add whatever was allocated in large_object_space since the previous GC event
+      if (this.prevLargeSize && space.beforeLarge.spaceUsedSize > this.prevLargeSize) {
+        totalAllocationRate += space.beforeLarge.spaceUsedSize - this.prevLargeSize;
       }
+      this.prevLargeSize = space.afterLarge.spaceUsedSize;
+    }
 
-      if (totalAllocationRate) {
-        void self.allocationRate.increment(totalAllocationRate);
-      }
-    });
+    if (totalAllocationRate > 0) {
+      void this.allocationRate.increment(totalAllocationRate);
+    }
   }
 
   static measureFdActivity(self: RuntimeMetrics, fdFunction: () => any): void {
@@ -274,8 +235,8 @@ export class RuntimeMetrics {
   }
 
   private initFdActivity(): void {
-    RuntimeMetrics.measureFdActivity(this, internals.GetCurMaxFd);
-    this.scheduleTask(RuntimeMetrics.measureFdActivity, 60000, this, internals.GetCurMaxFd);
+    RuntimeMetrics.measureFdActivity(this, collectFdStats);
+    this.scheduleTask(RuntimeMetrics.measureFdActivity, 60000, this, collectFdStats);
   }
 
   static measureEventLoopLag(self: RuntimeMetrics): void {
@@ -395,7 +356,7 @@ export class RuntimeMetrics {
       return;
     }
 
-    this.measureGcEvents(internals.EmitGCEvents);
+    this.startGcMetrics();
     this.initFdActivity();
     this.initEventLoopLag();
     this.initEventLoopTime();
@@ -408,6 +369,10 @@ export class RuntimeMetrics {
     for (const interval of this.intervals) {
       clearInterval(interval);
     }
+    this.intervals = [];
+
+    this.gcSource.stop();
+
     this.started = false;
   }
 
